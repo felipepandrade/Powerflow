@@ -111,6 +111,86 @@ class SignalRepository(abc.ABC):
         """Retorna sinais não resolvidos para reprocessamento tardio — RF-G.10."""
 
 
+class AreaRepository(abc.ABC):
+    """Porta para persistência de áreas organizacionais."""
+
+    @abc.abstractmethod
+    async def get_by_id(self, area_id: uuid.UUID) -> Any | None:
+        """Busca área por ID."""
+
+    @abc.abstractmethod
+    async def save(self, area: Any) -> None:
+        """Persiste ou atualiza uma área."""
+
+    @abc.abstractmethod
+    async def list_all(self) -> Sequence[Any]:
+        """Lista todas as áreas."""
+
+
+class StakeholderRepository(abc.ABC):
+    """Porta para persistência de stakeholders."""
+
+    @abc.abstractmethod
+    async def get_by_id(self, stakeholder_id: uuid.UUID) -> Any | None:
+        """Busca stakeholder por ID."""
+
+    @abc.abstractmethod
+    async def get_by_email(self, email: str) -> Any | None:
+        """Busca stakeholder por e-mail."""
+
+    @abc.abstractmethod
+    async def save(self, stakeholder: Any) -> None:
+        """Persiste ou atualiza um stakeholder."""
+
+    @abc.abstractmethod
+    async def list_all(self) -> Sequence[Any]:
+        """Lista todos os stakeholders."""
+
+
+class ProjectRepository(abc.ABC):
+    """Porta para persistência de projetos."""
+
+    @abc.abstractmethod
+    async def get_by_id(self, project_id: uuid.UUID) -> Any | None:
+        """Busca projeto por ID."""
+
+    @abc.abstractmethod
+    async def save(self, project: Any) -> None:
+        """Persiste ou atualiza um projeto."""
+
+    @abc.abstractmethod
+    async def list_all(self) -> Sequence[Any]:
+        """Lista todos os projetos."""
+
+
+class MilestoneRepository(abc.ABC):
+    """Porta para persistência de marcos."""
+
+    @abc.abstractmethod
+    async def get_by_id(self, milestone_id: uuid.UUID) -> Any | None:
+        """Busca marco por ID."""
+
+    @abc.abstractmethod
+    async def save(self, milestone: Any) -> None:
+        """Persiste ou atualiza um marco."""
+
+    @abc.abstractmethod
+    async def find_by_project(self, project_id: uuid.UUID) -> Sequence[Any]:
+        """Retorna os marcos de um projeto."""
+
+
+class CalendarRepository(abc.ABC):
+    """Porta para persistência de eventos de calendário."""
+
+    @abc.abstractmethod
+    async def save(self, event: Any) -> None:
+        """Persiste ou atualiza um evento de calendário."""
+
+    @abc.abstractmethod
+    async def find_in_range(self, start: datetime, end: datetime) -> Sequence[Any]:
+        """Retorna eventos no intervalo especificado."""
+
+
 class UnitOfWork(abc.ABC):
     """Porta para gerenciamento de transações."""
 

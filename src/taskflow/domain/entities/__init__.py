@@ -1,5 +1,12 @@
 """Domain entities package."""
 
+from taskflow.domain.entities.org import (
+    Area,
+    Milestone,
+    Portfolio,
+    Project,
+    Stakeholder,
+)
 from taskflow.domain.entities.source import (
     CalendarEvent,
     CorrelationRun,
@@ -8,8 +15,6 @@ from taskflow.domain.entities.source import (
 )
 from taskflow.domain.entities.task import (
     FollowUp,
-    Project,
-    Stakeholder,
     StakeholderInteraction,
     Task,
     TaskEvidence,
@@ -19,9 +24,12 @@ from taskflow.domain.entities.task import (
 )
 
 __all__ = [
+    "Area",
     "CalendarEvent",
     "CorrelationRun",
     "FollowUp",
+    "Milestone",
+    "Portfolio",
     "Project",
     "Signal",
     "SourceItem",

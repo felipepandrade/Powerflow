@@ -203,3 +203,54 @@ class ProcessingStatus(str, Enum):
     EXTRACTED = "extracted"
     CORRELATED = "correlated"
     FAILED = "failed"
+
+
+class DemandOrigin(str, Enum):
+    """Origem da demanda — RF-C.2 / Catálogo de métricas."""
+
+    INTERNAL_AREA = "internal_area"
+    PEER_AREA = "peer_area"
+    MANAGEMENT = "management"
+    EXTERNAL = "external"
+    SELF = "self"
+
+
+class MeetingClass(str, Enum):
+    """Classificação de reunião — RF-F.9."""
+
+    ONE_ON_ONE = "1:1"
+    TEAM = "team"
+    PROJECT = "project"
+    GOVERNANCE = "governance"
+    EXTERNAL = "external"
+    PERSONAL_BLOCK = "personal_block"
+
+
+class MilestoneStatus(str, Enum):
+    """Status de um marco de projeto."""
+
+    PLANNED = "planned"
+    AT_RISK = "at_risk"
+    MET = "met"
+    MISSED = "missed"
+    CANCELLED = "cancelled"
+
+
+class AreaKind(str, Enum):
+    """Tipo de área organizacional — Seção 8 do PRD."""
+
+    OWN_TEAM = "own_team"
+    PEER_AREA = "peer_area"
+    MANAGEMENT = "management"
+    EXTERNAL = "external"
+    VENDOR = "vendor"
+
+
+class ProjectStatus(str, Enum):
+    """Status de projeto."""
+
+    ACTIVE = "active"
+    ON_HOLD = "on_hold"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+

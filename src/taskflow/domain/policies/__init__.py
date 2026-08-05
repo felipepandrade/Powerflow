@@ -11,10 +11,15 @@ from taskflow.domain.policies.capacity_policy import (
     DayCapacity,
     TimeBlock,
 )
+from taskflow.domain.policies.confidence_router import (
+    ConfidenceRouter,
+    ConfidenceThresholds,
+)
 from taskflow.domain.policies.correlation_policy import (
     CorrelationDecision,
     CorrelationPolicy,
 )
+from taskflow.domain.policies.deduplication_policy import DeduplicationPolicy
 from taskflow.domain.policies.privacy_redaction import PrivacyRedactionPolicy
 from taskflow.domain.policies.staleness_policy import (
     StalenessPolicy,
@@ -33,9 +38,12 @@ __all__ = [
     "CandidateFusion",
     "CandidateScore",
     "CapacityPolicy",
+    "ConfidenceRouter",
+    "ConfidenceThresholds",
     "CorrelationDecision",
     "CorrelationPolicy",
     "DayCapacity",
+    "DeduplicationPolicy",
     "FusionResult",
     "InvalidTransitionError",
     "PrivacyRedactionPolicy",

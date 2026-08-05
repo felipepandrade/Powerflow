@@ -33,6 +33,7 @@ async def test_health_check(async_client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_ingest_source_endpoint(async_client: AsyncClient) -> None:
     import uuid
+
     from taskflow.application.dto.commands import IngestSourceItemResult
     item_id = uuid.uuid4()
     mock_result = IngestSourceItemResult(

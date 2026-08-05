@@ -6,8 +6,9 @@ NUNCA usadas em produção. Apenas em tests/.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 from taskflow.domain.ports.ports import (
     Clock,
@@ -68,7 +69,7 @@ class FakeSignalRepository(SignalRepository):
         self._items.append(signal)
 
     async def get_pending(self, limit: int = 50) -> Sequence[Any]:
-        from taskflow.domain.value_objects.enums import SignalState, ProposalStatus
+        from taskflow.domain.value_objects.enums import ProposalStatus, SignalState
         return [
             s for s in self._items
             if (hasattr(s, "state") and s.state == SignalState.PENDING_CORRELATION)
@@ -104,10 +105,10 @@ class FakeUnitOfWork(UnitOfWork):
         self.committed = False
         self.rolled_back = False
 
-    async def __aenter__(self) -> "FakeUnitOfWork":
+    async def __aenter__(self) -> FakeUnitOfWork:
         return self
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: object) -> None:
         pass
 
     async def commit(self) -> None:
