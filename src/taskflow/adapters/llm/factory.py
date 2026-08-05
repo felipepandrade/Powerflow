@@ -25,6 +25,9 @@ def create_llm_provider(
             from taskflow.config.settings import get_settings
             ollama_model = get_settings().OLLAMA_MODEL
         return OllamaProvider(base_url=ollama_url, model_name=ollama_model)
+    elif provider_type.lower() in ("chatgpt_subscription", "chatgpt_oauth", "openai_subscription"):
+        from taskflow.adapters.llm.chatgpt_subscription import ChatGPTSubscriptionLLMProvider
+        return ChatGPTSubscriptionLLMProvider(access_token=api_key)
     else:
         raise ValueError(f"Provedor LLM não suportado: {provider_type}")
 

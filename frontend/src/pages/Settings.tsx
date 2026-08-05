@@ -59,11 +59,34 @@ export const Settings = () => {
                 onChange={(e) => setProvider(e.target.value)}
                 className="input-field max-w-sm"
               >
-                <option value="gemini">Google Gemini</option>
+                <option value="gemini">Google Gemini (Default)</option>
+                <option value="chatgpt_subscription">Assinatura ChatGPT (OAuth - Usar Franquia)</option>
                 <option value="fake">Fake (Mock / Testes)</option>
-                <option value="openai">OpenAI (Planejado)</option>
+                <option value="openai">OpenAI Platform (API Key)</option>
               </select>
             </div>
+
+            {provider === 'chatgpt_subscription' && (
+              <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg space-y-3">
+                <h4 className="text-sm font-semibold text-white">Conectar Conta do ChatGPT (OAuth PKCE)</h4>
+                <p className="text-xs text-muted">
+                  Conecte sua conta do ChatGPT (Plus, Team ou Pro) para usar os modelos sem pagar tokens avulsos da API.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetch('http://localhost:8000/api/auth/openai-subscription/login')
+                      .then((r) => r.json())
+                      .then((data) => {
+                        if (data.auth_url) window.open(data.auth_url, '_blank');
+                      });
+                  }}
+                  className="px-4 py-2 bg-accent text-white text-xs font-bold rounded hover:bg-accent/80 transition-colors"
+                >
+                  🔐 Conectar Assinatura ChatGPT via OAuth
+                </button>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-muted mb-2 uppercase tracking-widest text-xs">

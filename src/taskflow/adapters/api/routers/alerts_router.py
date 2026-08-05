@@ -43,15 +43,13 @@ async def list_alerts(session: AsyncSession = Depends(get_db_session)) -> list[d
 
         # Salvar no banco
         for a in eval_alerts:
+            rule_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, a.rule_id)
             orm_a = AlertORM(
                 id=a.id,
-                rule_id=a.rule_id,
+                rule_id=rule_uuid,
                 severity=a.severity,
-                title=a.title,
-                message=a.message,
+                explanation=a.message,
                 status=a.status,
-                metric_values_snapshot={"metric_id": a.metric_id, "current_value": a.current_value},
-                created_at=a.created_at,
             )
             session.add(orm_a)
         await session.commit()

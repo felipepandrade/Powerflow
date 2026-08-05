@@ -8,6 +8,7 @@ from taskflow.adapters.api.routers import (
     alerts_router,
     analytics_router,
     auth_router,
+    oauth_openai,
     org_router,
     reports_router,
     signals_router,
@@ -65,6 +66,7 @@ app.include_router(org_router.router)
 app.include_router(analytics_router.router)
 app.include_router(alerts_router.router)
 app.include_router(reports_router.router)
+app.include_router(oauth_openai.router)
 
 
 @app.get("/health")
