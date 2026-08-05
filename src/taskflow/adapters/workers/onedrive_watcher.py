@@ -10,8 +10,7 @@ from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUs
 from taskflow.config.container import AsyncSessionLocal
 from taskflow.domain.value_objects.enums import SourceKind
 
-# Como é MVP e a fila é local fake
-from tests.fakes import FakeQueue
+from taskflow.adapters.queue.in_process_queue import InProcessQueue
 
 log = structlog.get_logger()
 
@@ -60,7 +59,7 @@ async def process_file(filepath: str):
                 uow=uow,
                 task_repo=task_repo,
                 signal_repo=signal_repo,
-                queue=FakeQueue()
+                queue=InProcessQueue()
             )
             
             occurred_at = datetime.utcnow()
