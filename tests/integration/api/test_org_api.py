@@ -34,6 +34,7 @@ async def test_org_endpoints(async_client: AsyncClient) -> None:
     assert ms_list.status_code == 200
     assert len(ms_list.json()) == 1
 
-    # 5. Criar e listar Stakeholder
-    st_resp = await async_client.post("/api/org/stakeholders", json={"display_name": "Carlos Souza", "email": "carlos@example.com", "area_id": area_data["id"]})
+    import uuid
+    unique_email = f"carlos_{uuid.uuid4().hex[:6]}@example.com"
+    st_resp = await async_client.post("/api/org/stakeholders", json={"display_name": "Carlos Souza", "email": unique_email, "area_id": area_data["id"]})
     assert st_resp.status_code == 201

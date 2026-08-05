@@ -20,6 +20,10 @@ from taskflow.domain.policies.correlation_policy import (
     CorrelationPolicy,
 )
 from taskflow.domain.policies.deduplication_policy import DeduplicationPolicy
+from taskflow.domain.policies.health_score_policy import (
+    HealthScorePolicy,
+    HealthScoreResult,
+)
 from taskflow.domain.policies.privacy_redaction import PrivacyRedactionPolicy
 from taskflow.domain.policies.staleness_policy import (
     StalenessPolicy,
@@ -45,6 +49,8 @@ __all__ = [
     "DayCapacity",
     "DeduplicationPolicy",
     "FusionResult",
+    "HealthScorePolicy",
+    "HealthScoreResult",
     "InvalidTransitionError",
     "PrivacyRedactionPolicy",
     "StaleReason",
