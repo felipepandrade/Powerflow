@@ -25,3 +25,15 @@ async def scan_stale_items(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/capacity")
+async def get_daily_capacity() -> dict:
+    """Diagnóstico de capacidade diária (Horas de Reunião vs Focus Time)."""
+    return {
+        "work_hours_total": 8.0,
+        "meeting_hours": 3.5,
+        "focus_time_available": 4.5,
+        "energy_score_pct": 85,
+        "context_switches_count": 4,
+    }

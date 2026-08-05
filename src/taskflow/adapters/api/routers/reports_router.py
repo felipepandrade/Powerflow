@@ -42,6 +42,19 @@ async def add_manual_metric(
     req: ManualMetricRequest, session: AsyncSession = Depends(get_db_session)
 ) -> dict[str, Any]:
     today = date.today()
+    
+    # Deletar pré-existente para garantir idempotência
+    from sqlalchemy import delete
+    await session.execute(
+        delete(MetricValueORM).where(
+            MetricValueORM.metric_id == req.metric_id,
+            MetricValueORM.metric_version == 1,
+            MetricValueORM.grain == "daily",
+            MetricValueORM.period_start == today,
+            MetricValueORM.dimension_key == req.dimension_key,
+        )
+    )
+
     orm = MetricValueORM(
         id=uuid.uuid4(),
         metric_id=req.metric_id,
