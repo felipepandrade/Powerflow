@@ -1,0 +1,3 @@
+mcp
+notebooklm-py
+python-dotenv

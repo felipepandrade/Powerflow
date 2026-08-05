@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: taskflow
+Version: 0.1.0
+Summary: Sistema Pessoal de Captura Autônoma e Gestão Correlacionada de Tarefas
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn[standard]>=0.28.0
+Requires-Dist: pydantic>=2.6.0
+Requires-Dist: pydantic-settings>=2.2.0
+Requires-Dist: sqlalchemy[asyncio]>=2.0.28
+Requires-Dist: aiosqlite>=0.20.0
+Requires-Dist: structlog>=24.1.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: typer>=0.12.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: cryptography>=42.0.5
+Requires-Dist: google-genai>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.1.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.5; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: mypy>=1.9.0; extra == "dev"
+Requires-Dist: ruff>=0.3.0; extra == "dev"
+Requires-Dist: pytest-env>=1.1.3; extra == "dev"
+
+# TaskFlow — Sistema Pessoal de Captura Autônoma e Gestão Correlacionada de Tarefas
+
+**TaskFlow** é um copiloto pessoal que lê continuamente e-mails, chats (Teams) e agenda (Outlook/Teams); identifica compromissos com evidência rastreável; decide autonomamente se cada nova informação é uma tarefa nova, atualização de existente ou apenas contexto correlato; e gerencia o ciclo de vida de compromissos que dependem de terceiros.
+
+---
+
+## Quickstart Local (< 5 min)
+
+### Pré-requisitos
+- Python 3.12+ (ou Docker & Docker Compose)
+
+### 1. Clonar e configurar ambiente
+```bash
+cp .env.example .env
+```
+Preencha no `.env` sua chave `GEMINI_API_KEY` obtida no Google AI Studio (ou configure via UI em Settings).
+
+### 2. Executar via Docker Compose
+```bash
+docker compose -f infra/compose/local.yml up -d
+```
+A REST API estará disponível em `http://localhost:8080` e os endpoints de integridade em `http://localhost:8080/health/live`.
+
+### 3. Executar localmente sem Docker
+```bash
+pip install -e .[dev]
+uvicorn apps.api.main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+---
+
+## Arquitetura e Estrutura
+- **`src/taskflow/domain`**: Entidades puras, Value Objects e Políticas de Domínio (`CorrelationPolicy`, `TaskStateMachine`, etc.).
+- **`src/taskflow/application`**: Casos de uso e orquestração.
+- **`src/taskflow/adapters`**: Integradores externos (Microsoft Graph, Gemini LLM Provider, SQLAlchemy).
+- **`apps/`**: Interfaces de execução (`api`, `worker`, `cli`).
+
+---
+
+## Testes e Qualidade
+```bash
+# Rodar testes unitários e de integração
+pytest
+
+# Checagem de tipos
+mypy src apps
+
+# Linting
+ruff check .
+```

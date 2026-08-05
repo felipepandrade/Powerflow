@@ -1,0 +1,171 @@
+"""Portas (interfaces) do domínio TaskFlow — Dependency Inversion.
+
+Todas as dependências externas são invertidas aqui. O domínio depende
+apenas dessas abstrações — nunca das implementações concretas.
+"""
+
+from __future__ import annotations
+
+import abc
+import uuid
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Any
+
+
+class LLMProvider(abc.ABC):
+    """Porta para provedores de LLM — RF-C.5, RF-H.1."""
+
+    @abc.abstractmethod
+    async def classify(self, text: str, context: dict[str, Any]) -> dict[str, Any]:
+        """Classificação leve — Estágio 2 da extração.
+
+        Responde: 'contém compromisso acionável?' — thinking=0.
+        """
+
+    @abc.abstractmethod
+    async def extract(self, text: str, context: dict[str, Any]) -> dict[str, Any]:
+        """Extração estruturada de sinais — Estágio 3, LLM reasoner."""
+
+    @abc.abstractmethod
+    async def correlate(self, signal: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:
+        """Raciocínio relacional — Estágio G2.
+
+        Recebe o sinal e fichas compactas dos candidatos.
+        Retorna assessments + decision_hint.
+        """
+
+    @abc.abstractmethod
+    async def draft_follow_up(self, task: dict[str, Any], context: dict[str, Any], tone: str) -> str:
+        """Gera rascunho de nudge — RF-E.2."""
+
+
+class EmbeddingProvider(abc.ABC):
+    """Porta para geração de embeddings — recuperador R6."""
+
+    @abc.abstractmethod
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Gera embeddings vetoriais para os textos."""
+
+
+class SourceProvider(abc.ABC):
+    """Porta para adaptadores de fonte de dados (Graph API)."""
+
+    @abc.abstractmethod
+    async def fetch_delta(self, resource_id: str, delta_link: str | None) -> tuple[list[dict[str, Any]], str]:
+        """Busca itens incrementais via delta query.
+
+        Retorna (items, new_delta_link).
+        """
+
+
+class TaskRepository(abc.ABC):
+    """Porta para persistência de tarefas."""
+
+    @abc.abstractmethod
+    async def get_by_id(self, task_id: uuid.UUID) -> Any | None:
+        """Busca tarefa por ID."""
+
+    @abc.abstractmethod
+    async def save(self, task: Any) -> None:
+        """Persiste ou atualiza uma tarefa."""
+
+    @abc.abstractmethod
+    async def find_active(
+        self,
+        status_filter: list[str] | None = None,
+        limit: int = 100,
+    ) -> Sequence[Any]:
+        """Retorna tarefas ativas com filtros opcionais."""
+
+    @abc.abstractmethod
+    async def search_full_text(self, query: str, limit: int = 20) -> Sequence[Any]:
+        """Busca full-text em título, descrição e evidências — RF-D.7."""
+
+    @abc.abstractmethod
+    async def find_by_embedding(self, embedding: list[float], top_k: int = 8) -> Sequence[Any]:
+        """Busca semântica por similaridade vetorial — recuperador R6."""
+
+
+class SignalRepository(abc.ABC):
+    """Porta para persistência de sinais e dados de correlação."""
+
+    @abc.abstractmethod
+    async def save(self, signal: Any) -> None:
+        """Persiste ou atualiza um sinal."""
+
+    @abc.abstractmethod
+    async def get_source_item_by_id(self, item_id: uuid.UUID) -> Any | None:
+        """Busca o SourceItem pelo ID."""
+
+    @abc.abstractmethod
+    async def get_pending(self, limit: int = 50) -> Sequence[Any]:
+        """Retorna sinais aguardando correlação."""
+
+    @abc.abstractmethod
+    async def save_correlation_run(self, run: Any) -> None:
+        """Persiste auditoria de correlação — NF-5."""
+
+    @abc.abstractmethod
+    async def get_orphan_signals(self, since: datetime, limit: int = 100) -> Sequence[Any]:
+        """Retorna sinais não resolvidos para reprocessamento tardio — RF-G.10."""
+
+
+class UnitOfWork(abc.ABC):
+    """Porta para gerenciamento de transações."""
+
+    @abc.abstractmethod
+    async def __aenter__(self) -> UnitOfWork:
+        """Inicia transação."""
+
+    @abc.abstractmethod
+    async def __aexit__(self, *args: object) -> None:
+        """Commit ou rollback."""
+
+    @abc.abstractmethod
+    async def commit(self) -> None:
+        """Confirma transação."""
+
+    @abc.abstractmethod
+    async def rollback(self) -> None:
+        """Reverte transação."""
+
+
+class Queue(abc.ABC):
+    """Porta para fila de mensagens — InProcessQueue ou ARQ/Redis."""
+
+    @abc.abstractmethod
+    async def enqueue(self, task_name: str, payload: dict[str, Any], delay_seconds: int = 0) -> str:
+        """Enfileira tarefa com payload."""
+
+    @abc.abstractmethod
+    async def dequeue(self, task_name: str) -> dict[str, Any] | None:
+        """Retira próxima tarefa da fila."""
+
+
+class Notifier(abc.ABC):
+    """Porta para envio de notificações — email, Teams."""
+
+    @abc.abstractmethod
+    async def send_email(self, to: str, subject: str, body: str) -> None:
+        """Envia e-mail — requer confirmação explícita do usuário (RF-E.3)."""
+
+    @abc.abstractmethod
+    async def send_teams_message(self, chat_id: str, body: str) -> None:
+        """Envia mensagem no Teams."""
+
+
+class Clock(abc.ABC):
+    """Porta para obtenção de hora corrente — facilita testes determinísticos."""
+
+    @abc.abstractmethod
+    def now(self) -> datetime:
+        """Retorna o instante atual."""
+
+
+class SystemClock(Clock):
+    """Implementação padrão que usa o relógio do sistema."""
+
+    def now(self) -> datetime:
+        """Retorna datetime.utcnow()."""
+        return datetime.utcnow()
