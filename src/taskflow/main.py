@@ -9,6 +9,7 @@ from taskflow.adapters.api.routers import (
     analytics_router,
     auth_router,
     org_router,
+    reports_router,
     signals_router,
     system_router,
     tasks_router,
@@ -63,6 +64,7 @@ app.include_router(webhook_router.router)
 app.include_router(org_router.router)
 app.include_router(analytics_router.router)
 app.include_router(alerts_router.router)
+app.include_router(reports_router.router)
 
 
 @app.get("/health")
