@@ -13,23 +13,25 @@ from taskflow.adapters.api.routers import (
 )
 from taskflow.adapters.persistence.models import Base
 from taskflow.adapters.workers.outlook_watcher import watch_outlook
+from taskflow.adapters.workers.teams_watcher import watch_teams
 from taskflow.config.container import engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializa as tabelas do banco de dados na inicialização do app
-    # Em produção, usariamos Alembic. Para o MVP SQLite, create_all() é suficiente.
+    # As tabelas são gerenciadas via Alembic migrations
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
-    # Inicia o background worker do Outlook Local
-    watcher_task = asyncio.create_task(watch_outlook(interval_seconds=5))
-    
+
+    # Inicia os background workers locais (Outlook e Teams COM)
+    outlook_task = asyncio.create_task(watch_outlook(interval_seconds=5))
+    teams_task = asyncio.create_task(watch_teams(interval_seconds=15))
+
     yield
-    
-    # Limpeza, caso necessária
-    watcher_task.cancel()
+
+    # Limpeza ao desligar
+    outlook_task.cancel()
+    teams_task.cancel()
     await engine.dispose()
 
 
