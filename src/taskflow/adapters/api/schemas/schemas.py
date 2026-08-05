@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -103,3 +104,105 @@ class TriageItemSchema(BaseModel):
 class TriageListResponse(BaseModel):
     data: list[TriageItemSchema]
     count: int
+
+
+# --- Org & Structure Schemas ---
+
+class AreaSchema(BaseModel):
+    id: uuid.UUID
+    name: str
+    short_name: str | None = None
+    parent_area_id: uuid.UUID | None = None
+    kind: str
+    is_own_team: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class AreaCreateRequest(BaseModel):
+    name: str
+    short_name: str | None = None
+    parent_area_id: uuid.UUID | None = None
+    kind: str = "peer_area"
+    is_own_team: bool = False
+
+
+class PortfolioSchema(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    owner_id: uuid.UUID | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class PortfolioCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    owner_id: uuid.UUID | None = None
+
+
+class StakeholderSchema(BaseModel):
+    id: uuid.UUID
+    email: str | None = None
+    display_name: str
+    job_title: str | None = None
+    department: str | None = None
+    area_id: uuid.UUID | None = None
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class StakeholderCreateRequest(BaseModel):
+    email: str | None = None
+    display_name: str
+    job_title: str | None = None
+    department: str | None = None
+    area_id: uuid.UUID | None = None
+
+
+class ProjectSchema(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    status: str
+    portfolio_id: uuid.UUID | None = None
+    owner_id: uuid.UUID | None = None
+    area_id: uuid.UUID | None = None
+    color: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    status: str = "active"
+    portfolio_id: uuid.UUID | None = None
+    owner_id: uuid.UUID | None = None
+    area_id: uuid.UUID | None = None
+    color: str | None = None
+
+
+class MilestoneSchema(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    target_date: date | str
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class MilestoneCreateRequest(BaseModel):
+    project_id: uuid.UUID
+    name: str
+    target_date: str
+    status: str = "planned"
+

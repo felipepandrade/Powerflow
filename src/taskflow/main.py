@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from taskflow.adapters.api.routers import (
     auth_router,
+    org_router,
     signals_router,
     system_router,
     tasks_router,
@@ -57,6 +58,7 @@ app.include_router(tasks_router.router)
 app.include_router(system_router.router)
 app.include_router(auth_router.router)
 app.include_router(webhook_router.router)
+app.include_router(org_router.router)
 
 
 @app.get("/health")
