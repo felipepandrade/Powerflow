@@ -70,12 +70,12 @@ async def list_alerts(session: AsyncSession = Depends(get_db_session)) -> list[d
     return [
         {
             "id": str(o.id),
-            "rule_id": o.rule_id,
+            "rule_id": str(o.rule_id) if o.rule_id else None,
             "severity": o.severity,
-            "title": o.title,
-            "message": o.message,
+            "title": "Alerta do Sistema",
+            "message": o.explanation,
             "status": o.status,
-            "created_at": o.created_at.isoformat(),
+            "created_at": o.created_at.isoformat() if hasattr(o, "created_at") and o.created_at else None,
         }
         for o in orms
     ]

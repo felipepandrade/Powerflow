@@ -28,6 +28,9 @@ def create_llm_provider(
     elif provider_type.lower() in ("chatgpt_subscription", "chatgpt_oauth", "openai_subscription"):
         from taskflow.adapters.llm.chatgpt_subscription import ChatGPTSubscriptionLLMProvider
         return ChatGPTSubscriptionLLMProvider(access_token=api_key)
+    elif provider_type.lower() in ("copilot_web", "copilot", "m365_copilot"):
+        from taskflow.adapters.llm.copilot_web_provider import CopilotWebLLMProvider
+        return CopilotWebLLMProvider()
     else:
         raise ValueError(f"Provedor LLM não suportado: {provider_type}")
 

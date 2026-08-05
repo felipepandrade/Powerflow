@@ -61,6 +61,7 @@ export const Settings = () => {
               >
                 <option value="gemini">Google Gemini (Default)</option>
                 <option value="chatgpt_subscription">Assinatura ChatGPT (OAuth - Usar Franquia)</option>
+                <option value="copilot_web">Microsoft Copilot Corporativo (Sessão Web Edge)</option>
                 <option value="fake">Fake (Mock / Testes)</option>
                 <option value="openai">OpenAI Platform (API Key)</option>
               </select>
