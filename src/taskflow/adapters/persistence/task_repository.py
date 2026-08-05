@@ -1,6 +1,6 @@
-from datetime import date
 import uuid
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession

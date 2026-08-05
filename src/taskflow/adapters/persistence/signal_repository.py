@@ -86,7 +86,7 @@ class SqlAlchemySignalRepository(SignalRepository):
         orm = result.scalar_one_or_none()
         if not orm:
             return None
-        from taskflow.domain.value_objects.enums import SourceKind, ProcessingStatus
+        from taskflow.domain.value_objects.enums import ProcessingStatus, SourceKind
         return SourceItem(
             id=orm.id,
             kind=SourceKind(orm.kind),

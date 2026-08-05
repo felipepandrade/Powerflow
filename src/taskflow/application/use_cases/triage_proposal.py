@@ -88,7 +88,6 @@ class TriageProposalUseCase:
             
             # [MVP BYPASS] Se a proposal for na verdade um Signal mockado,
             # atualiza o estado do Signal original para removê-lo da triagem
-            from taskflow.domain.entities.source import Signal
             from taskflow.domain.value_objects.enums import SignalState
             
             # Busca o Signal original no banco de dados para alterar seu state

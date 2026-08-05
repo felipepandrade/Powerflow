@@ -1,5 +1,6 @@
 import logging
-from typing import Sequence
+from collections.abc import Sequence
+
 from taskflow.domain.ports.ports import TaskRepository
 
 logger = logging.getLogger(__name__)

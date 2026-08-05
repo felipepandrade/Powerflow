@@ -1,8 +1,8 @@
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from taskflow.adapters.persistence.models import CredentialORM
 from taskflow.config.container import SessionLocal
+
 
 async def save_credential(key: str, value: str) -> None:
     """Salva ou atualiza uma credencial no banco de dados."""

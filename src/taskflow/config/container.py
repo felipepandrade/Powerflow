@@ -10,14 +10,21 @@ from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskReposito
 from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
 from taskflow.application.use_cases.correlate_signal import CorrelateSignalUseCase
 from taskflow.application.use_cases.extract_signals import ExtractSignalsUseCase
+from taskflow.application.use_cases.get_active_tasks import GetActiveTasksUseCase
+from taskflow.application.use_cases.get_pending_triage import GetPendingTriageUseCase
 from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUseCase
 from taskflow.application.use_cases.manage_task import ManageTaskUseCase
 from taskflow.application.use_cases.scan_stale_items import ScanStaleItemsUseCase
 from taskflow.application.use_cases.suggest_follow_up import SuggestFollowUpUseCase
 from taskflow.application.use_cases.triage_proposal import TriageProposalUseCase
 from taskflow.config.settings import get_settings
-from taskflow.domain.ports.ports import EmbeddingProvider, LLMProvider, SignalRepository, TaskRepository, UnitOfWork
-
+from taskflow.domain.ports.ports import (
+    EmbeddingProvider,
+    LLMProvider,
+    SignalRepository,
+    TaskRepository,
+    UnitOfWork,
+)
 
 # Setup de Database
 settings = get_settings()
@@ -140,15 +147,13 @@ def get_suggest_follow_up_use_case(
 
 def get_active_tasks_use_case(
     task_repo: TaskRepository = Depends(get_task_repository),
-) -> "GetActiveTasksUseCase":
-    from taskflow.application.use_cases.get_active_tasks import GetActiveTasksUseCase
+) -> GetActiveTasksUseCase:
     return GetActiveTasksUseCase(repository=task_repo)
 
 
 def get_pending_triage_use_case(
     signal_repo: SignalRepository = Depends(get_signal_repository),
-) -> "GetPendingTriageUseCase":
-    from taskflow.application.use_cases.get_pending_triage import GetPendingTriageUseCase
+) -> GetPendingTriageUseCase:
     return GetPendingTriageUseCase(repository=signal_repo)
 
 

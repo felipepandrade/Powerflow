@@ -67,6 +67,7 @@ class FollowUpResponse(BaseModel):
 
 import uuid
 
+
 class TaskSchema(BaseModel):
     id: uuid.UUID
     title: str

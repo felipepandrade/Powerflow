@@ -57,10 +57,10 @@ class InProcessQueue(Queue):
 
     async def _run_extract_signals(self, payload: dict[str, Any]) -> None:
         """Executa ExtractSignalsUseCase com uma sessão de banco própria."""
-        from taskflow.config.container import AsyncSessionLocal, create_background_llm_provider
         from taskflow.adapters.persistence.signal_repository import SqlAlchemySignalRepository
         from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
         from taskflow.application.use_cases.extract_signals import ExtractSignalsUseCase
+        from taskflow.config.container import AsyncSessionLocal, create_background_llm_provider
 
         source_item_id = uuid.UUID(payload["source_item_id"])
 
@@ -80,13 +80,13 @@ class InProcessQueue(Queue):
 
     async def _run_correlate_signal(self, payload: dict[str, Any]) -> None:
         """Executa CorrelateSignalUseCase com uma sessão de banco própria."""
-        from taskflow.config.container import AsyncSessionLocal, create_background_llm_provider
+        from taskflow.adapters.llm.factory import create_embedding_provider
         from taskflow.adapters.persistence.signal_repository import SqlAlchemySignalRepository
         from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskRepository
         from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
-        from taskflow.adapters.llm.factory import create_embedding_provider
-        from taskflow.config.settings import get_settings
         from taskflow.application.use_cases.correlate_signal import CorrelateSignalUseCase
+        from taskflow.config.container import AsyncSessionLocal, create_background_llm_provider
+        from taskflow.config.settings import get_settings
 
         signal_id = uuid.UUID(payload["signal_id"])
         s = get_settings()

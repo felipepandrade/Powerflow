@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import RedirectResponse
+
 import msal
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import RedirectResponse
 
 from taskflow.config.settings import get_settings
 

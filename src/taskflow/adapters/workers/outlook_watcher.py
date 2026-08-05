@@ -1,15 +1,15 @@
 import asyncio
-import structlog
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pythoncom
+import structlog
 import win32com.client
 
-from taskflow.application.dto.commands import IngestSourceItemCommand
-from taskflow.domain.value_objects.enums import SourceKind
-from taskflow.config.container import AsyncSessionLocal
-from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUseCase
 from taskflow.adapters.queue.in_process_queue import InProcessQueue
+from taskflow.application.dto.commands import IngestSourceItemCommand
+from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUseCase
+from taskflow.config.container import AsyncSessionLocal
+from taskflow.domain.value_objects.enums import SourceKind
 
 log = structlog.get_logger()
 
@@ -77,9 +77,13 @@ async def watch_outlook(interval_seconds: int = 5):
                 log.info("outlook.new_emails_found", count=len(new_emails))
                 
                 async with AsyncSessionLocal() as session:
+                    from taskflow.adapters.persistence.signal_repository import (
+                        SqlAlchemySignalRepository,
+                    )
+                    from taskflow.adapters.persistence.task_repository import (
+                        SqlAlchemyTaskRepository,
+                    )
                     from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
-                    from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskRepository
-                    from taskflow.adapters.persistence.signal_repository import SqlAlchemySignalRepository
                     
                     uow = SqlAlchemyUnitOfWork(session)
                     task_repo = SqlAlchemyTaskRepository(session)
@@ -97,7 +101,7 @@ async def watch_outlook(interval_seconds: int = 5):
                         if email_data.get("received_time"):
                             try:
                                 dt_str = email_data["received_time"]
-                                occurred_at = datetime.fromisoformat(dt_str).astimezone(timezone.utc).replace(tzinfo=None)
+                                occurred_at = datetime.fromisoformat(dt_str).astimezone(UTC).replace(tzinfo=None)
                             except ValueError:
                                 pass
                         

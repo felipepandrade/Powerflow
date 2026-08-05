@@ -32,25 +32,20 @@ async def test_health_check(async_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_ingest_source_endpoint(async_client: AsyncClient) -> None:
-    # Vamos mockar o UseCase para não fazer chamadas de banco ou LLM reais na rota
-    from taskflow.domain.entities.source import SourceItem
-    from taskflow.domain.value_objects.enums import SourceKind, ProcessingStatus
     import uuid
-    from datetime import datetime
-    
-    mock_item = SourceItem(
-        id=uuid.uuid4(),
-        kind=SourceKind.EMAIL,
-        channel="api",
-        title="Ingestion",
-        body_preview="Lembrar de revisar o PR",
-        body_full="Lembrar de revisar o PR",
-        occurred_at=datetime.utcnow(),
-        processing_status=ProcessingStatus.EXTRACTED
+    from taskflow.application.dto.commands import IngestSourceItemResult
+    item_id = uuid.uuid4()
+    mock_result = IngestSourceItemResult(
+        source_item_id=item_id,
+        was_deduplicated=False,
+        was_filtered=False,
+        filtered_reason=None,
+        signal_id=None,
+        was_enqueued_for_correlation=True,
     )
 
     with patch("taskflow.application.use_cases.ingest_source_item.IngestSourceItemUseCase.execute", new_callable=AsyncMock) as mock_exec:
-        mock_exec.return_value = mock_item
+        mock_exec.return_value = mock_result
         
         payload = {
             "content": "Lembrar de revisar o PR",

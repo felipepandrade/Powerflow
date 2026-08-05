@@ -2,11 +2,21 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from taskflow.adapters.api.schemas.schemas import FollowUpResponse, ManageTaskRequest, ManageTaskResponse, TaskListResponse, TaskSchema
+from taskflow.adapters.api.schemas.schemas import (
+    FollowUpResponse,
+    ManageTaskRequest,
+    ManageTaskResponse,
+    TaskListResponse,
+    TaskSchema,
+)
+from taskflow.application.use_cases.get_active_tasks import GetActiveTasksUseCase
 from taskflow.application.use_cases.manage_task import ManageTaskUseCase
 from taskflow.application.use_cases.suggest_follow_up import SuggestFollowUpUseCase
-from taskflow.application.use_cases.get_active_tasks import GetActiveTasksUseCase
-from taskflow.config.container import get_manage_task_use_case, get_suggest_follow_up_use_case, get_active_tasks_use_case
+from taskflow.config.container import (
+    get_active_tasks_use_case,
+    get_manage_task_use_case,
+    get_suggest_follow_up_use_case,
+)
 from taskflow.domain.value_objects.enums import TaskStatus
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])

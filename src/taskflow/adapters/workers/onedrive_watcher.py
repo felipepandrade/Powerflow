@@ -1,14 +1,14 @@
 import asyncio
-import json
 import os
 import uuid
-import structlog
 from datetime import datetime
 
+import structlog
+
 from taskflow.application.dto.commands import IngestSourceItemCommand
-from taskflow.domain.value_objects.enums import SourceKind
-from taskflow.config.container import AsyncSessionLocal
 from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUseCase
+from taskflow.config.container import AsyncSessionLocal
+from taskflow.domain.value_objects.enums import SourceKind
 
 # Como é MVP e a fila é local fake
 from tests.fakes import FakeQueue
@@ -48,9 +48,9 @@ async def process_file(filepath: str):
             
         async with AsyncSessionLocal() as session:
             # Instancia as dependências do banco manualmente
-            from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
-            from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskRepository
             from taskflow.adapters.persistence.signal_repository import SqlAlchemySignalRepository
+            from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskRepository
+            from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
             
             uow = SqlAlchemyUnitOfWork(session)
             task_repo = SqlAlchemyTaskRepository(session)

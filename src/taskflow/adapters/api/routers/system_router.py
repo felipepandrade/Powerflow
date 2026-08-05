@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-
 from pydantic import BaseModel
 
 from taskflow.application.use_cases.scan_stale_items import ScanStaleItemsUseCase

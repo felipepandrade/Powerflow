@@ -1,15 +1,20 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from taskflow.adapters.api.routers import signals_router, system_router, tasks_router, auth_router, webhook_router
+from taskflow.adapters.api.routers import (
+    auth_router,
+    signals_router,
+    system_router,
+    tasks_router,
+    webhook_router,
+)
 from taskflow.adapters.persistence.models import Base
+from taskflow.adapters.workers.outlook_watcher import watch_outlook
 from taskflow.config.container import engine
 
-
-import asyncio
-from taskflow.adapters.workers.outlook_watcher import watch_outlook
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
