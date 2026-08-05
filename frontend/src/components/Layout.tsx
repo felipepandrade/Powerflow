@@ -6,6 +6,7 @@ export const Layout = () => {
   const location = useLocation();
 
   const navItems = [
+    { name: 'Cockpit', path: '/cockpit', icon: Activity },
     { name: 'Triagem', path: '/triage', icon: Inbox },
     { name: 'Hoje', path: '/', icon: Activity },
     { name: 'Tarefas', path: '/tasks', icon: CheckSquare },
