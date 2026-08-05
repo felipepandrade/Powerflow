@@ -1203,7 +1203,7 @@ taskflow/
 | **Relatórios** | **Jinja2 → Markdown → WeasyPrint (PDF)** · **python-pptx** | Sem dependência de Office instalado |
 | **Ingestão Local** | **Outlook MAPI/COM (`pywin32`)** | **Nativa, local e em tempo real sem dependência de admin Azure/Graph API** |
 | Auth MS | MSAL Python / COM MAPI Local | Integração local MAPI (Outlook/Teams) + suporte MSAL Graph API para cloud |
-| LLM | **Gemini (default)** · Azure OpenAI · OpenAI · Anthropic · Ollama | Structured output nativo; multi-provedor por porta |
+| LLM | **Gemini (default)** · **ChatGPT Assinatura (OAuth PKCE)** · **M365 Copilot Corporativo (Sessão Web Edge)** · Azure OpenAI · OpenAI · Ollama | Structured output nativo; multi-provedor por porta desacoplada (`LLMProvider`) com suporte a franquia de tokens e autorização sem TI |
 | Embeddings | Gemini (768d) ou local (`bge-m3`) | Recuperador R6 e dedup |
 | Testes | pytest, pytest-asyncio, testcontainers, respx, Playwright | Pirâmide completa |
 | Qualidade | ruff, mypy (strict), pre-commit | Padronização automatizada |
