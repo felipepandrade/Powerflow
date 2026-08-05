@@ -128,6 +128,17 @@ class ComputeMetricsUseCase:
             dim_key = "area_id"
             dim_val = str(area_id)
 
+        # Deletar pré-existente para garantir idempotência do cálculo diário
+        await self._session.execute(
+            delete(MetricValueORM).where(
+                MetricValueORM.metric_id == metric_id,
+                MetricValueORM.metric_version == 1,
+                MetricValueORM.grain == "daily",
+                MetricValueORM.period_start == metric_date,
+                MetricValueORM.dimension_key == dim_key,
+            )
+        )
+
         orm = MetricValueORM(
             id=uuid.uuid4(),
             metric_id=metric_id,
