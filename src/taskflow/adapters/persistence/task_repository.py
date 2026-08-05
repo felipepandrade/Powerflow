@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,7 +77,29 @@ class SqlAlchemyTaskRepository(TaskRepository):
 
     async def find_by_embedding(self, embedding: list[float], top_k: int = 8) -> Sequence[Task]:
         # Para MVP com SQLite padrão, a busca por embedding não é possível nativamente.
-        # SQLite não tem suporte vetorial out-of-the-box (requer sqlite-vss).
-        # Vamos retornar uma lista vazia ou fazer um mock, já que o MVP foca no fluxo e LLMs textuais.
-        # Em PostgreSQL (Neon) usaríamos pgvector.
+        # Em PostgreSQL usaríamos pgvector.
         return []
+
+    async def find_by_project(self, project_id: uuid.UUID) -> Sequence[Task]:
+        """Retorna tarefas de um projeto."""
+        stmt = select(TaskORM).where(TaskORM.project_id == project_id)
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def find_by_stakeholder(self, stakeholder_id: uuid.UUID) -> Sequence[Task]:
+        """Retorna tarefas vinculadas a um stakeholder (requester ou waiting_on)."""
+        stmt = select(TaskORM).where(
+            or_(TaskORM.requester_id == stakeholder_id, TaskORM.waiting_on_id == stakeholder_id)
+        )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def find_stale(self, cutoff: datetime) -> Sequence[Task]:
+        """Retorna tarefas sem atividade desde a data limite."""
+        stmt = select(TaskORM).where(
+            TaskORM.last_activity_at < cutoff,
+            TaskORM.status.not_in(["done", "cancelled"]),
+        )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
