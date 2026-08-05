@@ -1,4 +1,4 @@
-# PRD — PowerFlow
+# PRD — Powerflow
 ### Sistema Pessoal de Captura Autônoma, Gestão Correlacionada de Tarefas e **Cockpit Gerencial**
 
 **Versão:** 1.2 (consolidada) · **Autor:** Felipe Porto Andrade · **Data:** 2026-08-04
@@ -1201,7 +1201,8 @@ taskflow/
 | Frontend | React 18 + TS + Vite + Tailwind + shadcn/ui + TanStack Query | Alta produtividade com agentes de código |
 | **Gráficos** | **Recharts** (padrão) + **visx** para CFD/scatter | Composável, acessível, sem licença comercial |
 | **Relatórios** | **Jinja2 → Markdown → WeasyPrint (PDF)** · **python-pptx** | Sem dependência de Office instalado |
-| Auth MS | MSAL Python | Oficial; PKCE e device code |
+| **Ingestão Local** | **Outlook MAPI/COM (`pywin32`)** | **Nativa, local e em tempo real sem dependência de admin Azure/Graph API** |
+| Auth MS | MSAL Python / COM MAPI Local | Integração local MAPI (Outlook/Teams) + suporte MSAL Graph API para cloud |
 | LLM | **Gemini (default)** · Azure OpenAI · OpenAI · Anthropic · Ollama | Structured output nativo; multi-provedor por porta |
 | Embeddings | Gemini (768d) ou local (`bge-m3`) | Recuperador R6 e dedup |
 | Testes | pytest, pytest-asyncio, testcontainers, respx, Playwright | Pirâmide completa |
