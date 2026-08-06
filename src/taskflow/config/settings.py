@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     OLLAMA_MODEL: str = "llama3.1:8b"
-    LLM_MODEL_CLASSIFIER: str = "gemini-2.5-flash"
-    LLM_MODEL_REASONER: str = "gemini-2.5-pro"
+    LLM_MODEL_CLASSIFIER: str = "gemini-3.6-flash"
+    LLM_MODEL_REASONER: str = "gemini-3.6-flash"
     LLM_VALIDATE_MODEL_ON_STARTUP: bool = False
     LLM_THINKING_BUDGET_CLASSIFY: int = 0
     LLM_THINKING_BUDGET_EXTRACT: int = 1024

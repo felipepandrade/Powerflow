@@ -10,11 +10,11 @@ from taskflow.domain.ports.ports import EmbeddingProvider, LLMProvider
 class GeminiProvider(LLMProvider, EmbeddingProvider):
     """Implementação do provedor LLM usando a API oficial Google GenAI (gemini-3.6-flash)."""
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, model_name: str | None = None) -> None:
         # Se api_key for None, a biblioteca tenta pegar do ambiente (GEMINI_API_KEY)
         self.client = genai.Client(api_key=api_key)
-        # O usuário solicitou explicitamente o uso do Gemini 3.6 Flash para tudo (como estamos em Ago/2026)
-        self.model_name = "gemini-3.6-flash"
+        from taskflow.config.settings import get_settings
+        self.model_name = model_name or get_settings().LLM_MODEL_CLASSIFIER or "gemini-3.6-flash"
 
     async def _generate_json(self, prompt: str, schema: dict[str, Any] | None = None) -> dict[str, Any]:
         """Método auxiliar para requisições JSON estruturadas."""
