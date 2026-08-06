@@ -93,11 +93,9 @@ class EvaluateStalenessUseCase:
             follow_up_orm = FollowUpORM(
                 id=uuid.uuid4(),
                 task_id=t.id,
-                trigger_type=action_recommendation,
-                days_stale=days_inactive,
-                nudge_draft=nudge_draft,
-                status="pending",
-                created_at=now,
+                rule_id=action_recommendation,
+                draft_body=nudge_draft,
+                status="suggested",
             )
             self._session.add(follow_up_orm)
 
