@@ -1,6 +1,6 @@
 """Testes unitários para StalenessPolicy e CapacityPolicy — RF-E.1, RF-F.6."""
 
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 import pytest
 
@@ -144,6 +144,25 @@ class TestStalenessDueDate:
             now=NOW,
         )
         assert not result.is_stale
+
+
+
+    def test_all_day_and_timezone_are_handled(self) -> None:
+
+        blocks = [
+            TimeBlock(
+                starts_at=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+                ends_at=datetime(2026, 8, 3, 13, 0, tzinfo=UTC),
+            ),
+            TimeBlock(
+                starts_at=MONDAY,
+                ends_at=MONDAY + timedelta(days=1),
+                is_all_day=True,
+            ),
+        ]
+        result = capacity.compute(MONDAY, blocks)
+        assert result.meeting_minutes == pytest.approx(60)
+        assert len(result.blocks) == 1
 
 
 # ─── CapacityPolicy Tests ───────────────────────────────────────────

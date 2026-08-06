@@ -1,73 +1,125 @@
+"""Microsoft Entra ID authorization-code flow with state, PKCE, and protected cache."""
+
+from __future__ import annotations
+
+import json
 import logging
+from typing import Any, cast
 
 import msal
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from taskflow.config.settings import get_settings
+from taskflow.adapters.persistence.credentials_store import (
+    delete_credential,
+    get_credential,
+    save_credential,
+)
+from taskflow.config.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
-# Scopes needed for the application
-# msal already includes offline_access, openid and profile by default
-SCOPES = ["User.Read", "Mail.Read", "Calendars.Read"]
+_TOKEN_CACHE_KEY = "ms_graph_token_cache"
+_FLOW_KEY_PREFIX = "ms_graph_auth_flow:"
+_RESERVED_SCOPES = {"openid", "profile", "offline_access"}
 
-def _build_msal_app(cache=None):
-    settings = get_settings()
+
+def _requested_scopes(settings: Settings) -> list[str]:
+    """MSAL adds OIDC reserved scopes itself; Graph scopes remain explicit."""
+    return [scope for scope in settings.microsoft_scopes if scope.lower() not in _RESERVED_SCOPES]
+
+
+def _build_msal_app(
+    settings: Settings,
+    cache: msal.SerializableTokenCache,
+) -> msal.PublicClientApplication:
     authority = f"https://login.microsoftonline.com/{settings.MS_TENANT_ID}"
-    return msal.ConfidentialClientApplication(
+    return msal.PublicClientApplication(
         settings.MS_CLIENT_ID,
         authority=authority,
-        client_credential=settings.MS_CLIENT_SECRET,
-        token_cache=cache
+        token_cache=cache,
     )
 
+
+async def _load_cache() -> msal.SerializableTokenCache:
+    cache = msal.SerializableTokenCache()
+    serialized = await get_credential(_TOKEN_CACHE_KEY)
+    if serialized:
+        cache.deserialize(serialized)
+    return cache
+
+
+async def _persist_cache(cache: msal.SerializableTokenCache) -> None:
+    if cache.has_state_changed:
+        await save_credential(_TOKEN_CACHE_KEY, cache.serialize())
+
+
 @router.get("/login")
-async def login(request: Request):
-    """Gera a URL de login da Microsoft e redireciona o usuário."""
+async def login() -> RedirectResponse:
+    """Start a state-bound authorization-code flow; MSAL supplies PKCE."""
     settings = get_settings()
-    app = _build_msal_app()
-    
-    # State is used to prevent CSRF, but we'll keep it simple for MVP
-    # In a real scenario, save the state in a secure cookie
-    auth_url = app.get_authorization_request_url(
-        SCOPES,
+    if not settings.MS_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Microsoft authentication is not configured")
+
+    cache = await _load_cache()
+    app = _build_msal_app(settings, cache)
+    raw_flow = app.initiate_auth_code_flow(
+        scopes=_requested_scopes(settings),
         redirect_uri=settings.MS_REDIRECT_URI,
     )
-    
-    logger.info("Redirecionando para login da Microsoft")
-    return RedirectResponse(auth_url)
+    flow = cast(dict[str, Any], raw_flow)
+    state = str(flow.get("state", ""))
+    auth_uri = str(flow.get("auth_uri", ""))
+    if not state or not auth_uri:
+        logger.error("microsoft_auth.flow_initialization_failed")
+        raise HTTPException(status_code=503, detail="Microsoft authentication is unavailable")
+
+    await save_credential(f"{_FLOW_KEY_PREFIX}{state}", json.dumps(flow))
+    return RedirectResponse(auth_uri)
 
 
 @router.get("/callback")
-async def callback(code: str, request: Request):
-    """Recebe o authorization_code e troca por access_token e refresh_token."""
+async def callback(request: Request, state: str | None = None) -> RedirectResponse:
+    """Complete the state/PKCE flow without returning or logging credentials."""
+    if not state:
+        raise HTTPException(status_code=400, detail="Invalid authentication state")
+
     settings = get_settings()
-    app = _build_msal_app()
-    
-    # Obtém o token
-    result = app.acquire_token_by_authorization_code(
-        code,
-        scopes=SCOPES,
-        redirect_uri=settings.MS_REDIRECT_URI,
-    )
-    
+    flow_key = f"{_FLOW_KEY_PREFIX}{state}"
+    serialized_flow = await get_credential(flow_key)
+    if serialized_flow is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired authentication state")
+
+    cache = await _load_cache()
+    app = _build_msal_app(settings, cache)
+    try:
+        flow = cast(dict[str, Any], json.loads(serialized_flow))
+        raw_result = app.acquire_token_by_auth_code_flow(flow, dict(request.query_params))
+        result = cast(dict[str, Any], raw_result)
+    except (ValueError, json.JSONDecodeError):
+        logger.warning("microsoft_auth.callback_rejected")
+        raise HTTPException(status_code=400, detail="Microsoft authentication failed") from None
+    finally:
+        await delete_credential(flow_key)
+
     if "error" in result:
-        logger.error(f"Erro na autenticação: {result.get('error_description')}")
-        raise HTTPException(status_code=400, detail=result.get("error_description"))
-        
-    # Extrai os tokens
-    access_token = result.get("access_token")
-    refresh_token = result.get("refresh_token")
-    
-    if not refresh_token:
-        logger.warning("Nenhum refresh token recebido. Verifique o escopo offline_access.")
-    else:
-        from taskflow.adapters.persistence.credentials_store import save_credential
-        await save_credential("ms_graph_refresh_token", refresh_token)
-        logger.info("Refresh token salvo com sucesso.")
-        
-    # Redireciona o usuário de volta para o Dashboard (SPA)
-    return RedirectResponse("http://localhost:5173/settings?auth_success=true")
+        logger.warning("microsoft_auth.provider_rejected", extra={"error": result.get("error")})
+        raise HTTPException(status_code=400, detail="Microsoft authentication failed")
+
+    await _persist_cache(cache)
+    return RedirectResponse(settings.FRONTEND_AUTH_SUCCESS_URL)
+
+
+@router.get("/status")
+async def auth_status() -> dict[str, Any]:
+    """Expose connection metadata only; never tokens or provider exception details."""
+    settings = get_settings()
+    cache = await _load_cache()
+    app = _build_msal_app(settings, cache)
+    accounts = cast(list[dict[str, Any]], app.get_accounts())
+    return {
+        "connected": bool(accounts),
+        "account_count": len(accounts),
+        "scopes": settings.microsoft_scopes,
+    }

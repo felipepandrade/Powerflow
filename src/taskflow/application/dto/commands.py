@@ -32,6 +32,7 @@ class IngestSourceItemCommand:
     title: str | None = None
     body_preview: str | None = None
     body_full: str | None = None
+    store_full_body: bool = False
     author_email: str | None = None
     author_name: str | None = None
     participants: list[dict[str, Any]] = field(default_factory=list)
@@ -41,6 +42,11 @@ class IngestSourceItemCommand:
     # Campos específicos de CalendarEvent
     calendar_starts_at: datetime | None = None
     calendar_ends_at: datetime | None = None
+    calendar_timezone: str | None = None
+    calendar_location: str | None = None
+    calendar_instance_type: str | None = None
+    calendar_body_hash: str | None = None
+    calendar_categories: list[str] = field(default_factory=list)
     calendar_sensitivity: str | None = None
     calendar_show_as: str | None = None
     calendar_series_master_id: str | None = None
@@ -168,6 +174,14 @@ class UndoLastTransitionCommand:
 
 
 @dataclass
+class UndoAutoActionCommand:
+    """Undo one audited automatic mutation by its durable history identity."""
+
+    task_id: uuid.UUID
+    history_id: uuid.UUID
+
+
+@dataclass
 class TaskView:
     """DTO de leitura de uma tarefa."""
 
@@ -251,5 +265,5 @@ class ProposalView:
     proposal_kind: ProposalKind
     payload: dict[str, Any]
     confidence: float
-    candidate_tasks: list[Any] | None
+    candidate_tasks: list[dict[str, Any]] | None
     created_at: datetime

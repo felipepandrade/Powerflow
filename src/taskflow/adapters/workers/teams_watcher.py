@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime
+from typing import Any
 
 import pythoncom
 import structlog
@@ -18,7 +19,7 @@ log = structlog.get_logger()
 PROCESSED_TEAMS_IDS: set[str] = set()
 
 
-def poll_teams_sync() -> list[dict]:
+def poll_teams_sync() -> list[dict[str, Any]]:
     """Busca conversas e chats do Teams sincronizados na pasta 'Conversation History' do Outlook COM."""
     pythoncom.CoInitialize()
     try:
@@ -58,13 +59,13 @@ def poll_teams_sync() -> list[dict]:
                     "sender_email": getattr(msg, "SenderEmailAddress", ""),
                     "received_time": msg.ReceivedTime.isoformat() if hasattr(msg, "ReceivedTime") else None,
                 })
-            except Exception as e:
-                log.error("teams.msg_parse_error", error=str(e))
+            except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+                log.error("teams.msg_parse_error", error_type=type(exc).__name__)
                 continue
 
         return new_chats
-    except Exception as e:
-        log.warning("teams.folder_not_found", detail=str(e))
+    except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+        log.warning("teams.folder_not_found", error_type=type(exc).__name__)
         return []
     finally:
         pythoncom.CoUninitialize()
@@ -105,7 +106,7 @@ async def watch_teams(interval_seconds: int = 15) -> None:
                         occurred_at = datetime.utcnow()
                         if chat_data.get("received_time"):
                             try:
-                                dt_str = chat_data["received_time"]
+                                dt_str = str(chat_data["received_time"])
                                 occurred_at = datetime.fromisoformat(dt_str).astimezone(UTC).replace(tzinfo=None)
                             except ValueError:
                                 pass
@@ -118,14 +119,14 @@ async def watch_teams(interval_seconds: int = 15) -> None:
                             revision_hash=chat_data["chat_id"],
                             title=chat_data.get("subject"),
                             body_full=chat_data.get("body"),
-                            body_preview=chat_data.get("body")[:500] if chat_data.get("body") else None,
+                            body_preview=str(chat_data.get("body"))[:500] if chat_data.get("body") else None,
                             author_email=chat_data.get("sender_email"),
                             author_name=chat_data.get("sender_name"),
                         )
                         await uc.execute(cmd)
                         log.info("teams.chat_ingested", chat_id=chat_data["chat_id"])
 
-        except Exception as e:
-            log.error("teams.loop_error", error=str(e))
+        except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+            log.error("teams.loop_error", error_type=type(exc).__name__)
 
         await asyncio.sleep(interval_seconds)

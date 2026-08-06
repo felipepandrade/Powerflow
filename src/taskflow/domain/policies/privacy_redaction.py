@@ -64,6 +64,25 @@ class PrivacyRedactionPolicy:
             filtered_reason="privacy_redaction",
         )
 
+    def redact_calendar_metadata(self, event: CalendarEvent) -> CalendarEvent:
+        """Keep only opaque identity, time window, timezone and busy status."""
+        if not self.should_redact(event):
+            return event
+        return replace(
+            event,
+            series_master_id=None,
+            instance_type=None,
+            body_hash=None,
+            location=None,
+            is_online=False,
+            join_url=None,
+            linked_chat_id=None,
+            organizer_email=None,
+            my_response=None,
+            recurrence_rule=None,
+            attendee_count=None,
+            categories=[],
+        )
     def build_llm_payload(
         self,
         source_item: SourceItem,

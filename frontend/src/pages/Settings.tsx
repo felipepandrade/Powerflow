@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { checkHealth } from '../api/client';
+import { API_BASE_URL, checkHealth } from '../api/client';
 
 export const Settings = () => {
   const [provider, setProvider] = useState(localStorage.getItem('llm_provider') || 'gemini');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('llm_api_key') || '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [apiHealth, setApiHealth] = useState<'unknown' | 'online' | 'error'>('unknown');
   const [authSuccess, setAuthSuccess] = useState(false);
@@ -24,7 +23,6 @@ export const Settings = () => {
   const handleSave = () => {
     setStatus('saving');
     localStorage.setItem('llm_provider', provider);
-    localStorage.setItem('llm_api_key', apiKey);
     
     // Simulate slight delay for feedback
     setTimeout(() => {
@@ -34,7 +32,7 @@ export const Settings = () => {
   };
 
   const handleMicrosoftLogin = () => {
-    window.location.href = "http://localhost:8000/api/auth/login";
+    window.location.assign(`${API_BASE_URL}/api/auth/login`);
   };
 
   return (
@@ -89,19 +87,9 @@ export const Settings = () => {
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-muted mb-2 uppercase tracking-widest text-xs">
-                Chave da API (Opcional para Fake)
-              </label>
-              <input 
-                type="password" 
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Insira sua API Key..."
-                className="input-field max-w-md"
-              />
-              <p className="text-surface2 text-xs mt-2">Sua chave é armazenada apenas localmente no seu navegador (localStorage).</p>
-            </div>
+            <p className="rounded border border-surface2 p-4 text-sm text-muted">
+              Segredos de provedores sao configurados no ambiente protegido do backend e nunca armazenados no navegador.
+            </p>
 
             <div className="pt-4 border-t border-surface2">
               <button 

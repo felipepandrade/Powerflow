@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
@@ -21,19 +21,28 @@ class MetricDefinition:
     grain_support: list[str] = field(default_factory=lambda: ["daily", "weekly", "monthly"])
     is_k_anonymized: bool = False  # Requer K-anonimato mínimo = 3
     compute_fn_name: str = ""
+    version: int = 1
+    formula: str = "deterministic implementation named by compute_fn_name"
+    limitations: str = "Visão restrita ao fluxo capturado pelo gestor."
+    source: str = "daily snapshots"
+    coverage_basis: str = "snapshot diário publicado"
+    direction: str = "neutral"
+    dimensions: tuple[str, ...] = ("_total", "project_id", "area_id")
+    data_origin: str = "derived"
 
 
 class MetricRegistry:
     """Catálogo central code-first de métricas."""
 
-    _registry: dict[str, MetricDefinition] = {}
+    _registry: ClassVar[dict[str, MetricDefinition]] = {}
 
     @classmethod
     def register(cls, metric: MetricDefinition) -> MetricDefinition:
         """Registra uma métrica validando todos os metadados obrigatórios."""
         if not metric.id or not metric.name:
             raise ValueError("Métrica deve conter id e name.")
-        if not metric.question or not metric.expected_action or not metric.owner:
+        if (not metric.question or not metric.formula or not metric.limitations
+                or not metric.expected_action or not metric.owner or metric.version < 1):
             raise ValueError(
                 f"Métrica {metric.id} viola o Gate CI: 'question', 'expected_action' e 'owner' são OBRIGATÓRIOS!"
             )
@@ -44,6 +53,13 @@ class MetricRegistry:
     @classmethod
     def get(cls, metric_id: str) -> MetricDefinition | None:
         return cls._registry.get(metric_id)
+    @classmethod
+    def require(cls, metric_id: str) -> MetricDefinition:
+        metric = cls.get(metric_id)
+        if metric is None:
+            raise KeyError(f"Unknown metric: {metric_id}")
+        return metric
+
 
     @classmethod
     def list_all(cls) -> list[MetricDefinition]:
@@ -53,7 +69,8 @@ class MetricRegistry:
     def validate_all(cls) -> bool:
         """Validação estática usada no CI."""
         for metric in cls._registry.values():
-            if not metric.question or not metric.expected_action or not metric.owner:
+            if (not metric.question or not metric.formula or not metric.limitations
+                    or not metric.expected_action or not metric.owner or metric.version < 1):
                 return False
         return True
 

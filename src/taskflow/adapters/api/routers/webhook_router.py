@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import datetime
 
@@ -27,14 +28,17 @@ async def power_automate_webhook(
         if req.received_time:
             try:
                 # Converter de string ISO
-                occurred_at = datetime.fromisoformat(req.received_time.replace('Z', '+00:00'))
+                occurred_at = datetime.fromisoformat(req.received_time)
             except ValueError:
                 pass
 
+        content_hash = hashlib.sha256(
+            f"{req.subject or ''}\n{req.body or ''}".encode()
+        ).hexdigest()
         cmd = IngestSourceItemCommand(
             kind=SourceKind.EMAIL,
             channel="power_automate_webhook",
-            external_id=req.message_id or str(uuid.uuid4()),
+            external_id=req.message_id or f"powerautomate:{content_hash}",
             occurred_at=occurred_at,
             revision_hash=req.message_id or str(uuid.uuid4()),  # Para simplificar deduplicação no MVP
             title=req.subject,
@@ -56,5 +60,5 @@ async def power_automate_webhook(
             status=status,
             message=f"Webhook processed with status: {status}",
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Webhook processing failed") from exc

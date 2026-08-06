@@ -85,6 +85,11 @@ class TaskUpdate:
     source_item_id: uuid.UUID | None = None
     signal_id: uuid.UUID | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
+    def __post_init__(self) -> None:
+        if not self.content.strip():
+            raise ValueError("TaskUpdate.content cannot be empty.")
+
+
 
 
 @dataclass
@@ -126,11 +131,28 @@ class Task:
         """Retorna snapshot do estado atual para suporte a undo — RF-D.3."""
         return {
             "status": self.status.value,
+            "title": self.title,
             "priority": self.priority.value,
             "due_date": self.due_date.isoformat() if self.due_date else None,
             "waiting_on_id": str(self.waiting_on_id) if self.waiting_on_id else None,
             "description": self.description,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+
+    def restore_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Restore every mutable field captured before an automatic action."""
+        self.status = TaskStatus(str(snapshot["status"]))
+        self.title = str(snapshot.get("title", self.title))
+        self.priority = Priority(str(snapshot["priority"]))
+        due_date = snapshot.get("due_date")
+        self.due_date = date.fromisoformat(str(due_date)) if due_date else None
+        waiting_on_id = snapshot.get("waiting_on_id")
+        self.waiting_on_id = uuid.UUID(str(waiting_on_id)) if waiting_on_id else None
+        description = snapshot.get("description")
+        self.description = str(description) if description is not None else None
+        completed_at = snapshot.get("completed_at")
+        self.completed_at = datetime.fromisoformat(str(completed_at)) if completed_at else None
+
 
 
 @dataclass
@@ -188,7 +210,7 @@ class TaskProposal:
     signal_id: uuid.UUID = field(default_factory=uuid.uuid4)
     proposal_kind: ProposalKind = ProposalKind.NEW_TASK
     payload: dict[str, Any] = field(default_factory=dict[str, Any])
-    candidate_tasks: list[Any] | None = None
+    candidate_tasks: list[dict[str, Any]] | None = None
     confidence: float = 0.0
     status: ProposalStatus = ProposalStatus.PENDING
     resolved_task_id: uuid.UUID | None = None

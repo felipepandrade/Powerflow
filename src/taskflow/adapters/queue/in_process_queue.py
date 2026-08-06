@@ -30,7 +30,7 @@ class InProcessQueue(Queue):
 
         # Agenda a execução assíncrona sem bloquear o chamador
         asyncio.create_task(
-            self._dispatch(task_name, payload, job_id),
+            self.dispatch(task_name, payload, job_id),
             name=f"queue_{task_name}_{job_id[:8]}"
         )
         return job_id
@@ -38,11 +38,11 @@ class InProcessQueue(Queue):
     async def dequeue(self, task_name: str) -> dict[str, Any] | None:
         return None  # Não aplicável — execução é inline
 
-    async def _dispatch(
+    async def dispatch(
         self,
         task_name: str,
         payload: dict[str, Any],
-        job_id: str,
+        job_id: str | None = None,
     ) -> None:
         """Executa o handler da task de forma assíncrona."""
         try:
@@ -53,7 +53,7 @@ class InProcessQueue(Queue):
             else:
                 log.warning("queue.unknown_task", task=task_name)
         except Exception as e:
-            log.error("queue.dispatch_error", task=task_name, job_id=job_id, error=str(e), exc_info=True)
+            log.exception("queue.dispatch_error", task=task_name, job_id=job_id, error_type=type(e).__name__)
 
     async def _run_extract_signals(self, payload: dict[str, Any]) -> None:
         """Executa ExtractSignalsUseCase com uma sessão de banco própria."""
@@ -84,6 +84,7 @@ class InProcessQueue(Queue):
         from taskflow.adapters.persistence.signal_repository import SqlAlchemySignalRepository
         from taskflow.adapters.persistence.task_repository import SqlAlchemyTaskRepository
         from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
+        from taskflow.application.dto.commands import CorrelateSignalCommand
         from taskflow.application.use_cases.correlate_signal import CorrelateSignalUseCase
         from taskflow.config.container import AsyncSessionLocal, create_background_llm_provider
         from taskflow.config.settings import get_settings
@@ -108,5 +109,10 @@ class InProcessQueue(Queue):
                 llm=llm,
                 embedder=embedder,
             )
-            await uc.execute(signal_id)
+            await uc.execute(
+                CorrelateSignalCommand(
+                    signal_id=signal_id,
+                    force_triage=bool(payload.get("force_triage", False)),
+                )
+            )
             log.info("queue.correlate_signal.done", signal_id=str(signal_id))

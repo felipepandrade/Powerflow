@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taskflow.adapters.persistence.models import AlertORM, DecisionLogORM, MetricValueORM
-from taskflow.domain.policies.alert_rule_engine import AlertRuleEngine
 from taskflow.config.container import get_db_session
+from taskflow.domain.policies.alert_rule_engine import AlertRuleEngine
 
 router = APIRouter(prefix="/api", tags=["Alerts & Decisions"])
 
@@ -38,21 +38,12 @@ async def list_alerts(session: AsyncSession = Depends(get_db_session)) -> list[d
         res_m = await session.execute(stmt_m)
         metric_values = res_m.scalars().all()
 
-        m_data = [{"metric_id": mv.metric_id, "value": float(mv.value)} for mv in metric_values if mv.value is not None]
+        m_data = [{"metric_id": mv.metric_id, "value": float(mv.value),
+                   "is_suppressed": mv.is_suppressed}
+                  for mv in metric_values
+                  if mv.value is not None and not mv.is_suppressed]
         eval_alerts = AlertRuleEngine.evaluate_metrics(m_data)
 
-        # Salvar no banco
-        for a in eval_alerts:
-            rule_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, a.rule_id)
-            orm_a = AlertORM(
-                id=a.id,
-                rule_id=rule_uuid,
-                severity=a.severity,
-                explanation=a.message,
-                status=a.status,
-            )
-            session.add(orm_a)
-        await session.commit()
 
         return [
             {

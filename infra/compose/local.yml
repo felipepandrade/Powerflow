@@ -1,15 +1,71 @@
-version: '3.8'
+x-powerflow-service: &powerflow-service
+  build:
+    context: ../..
+    dockerfile: infra/docker/Dockerfile
+  env_file:
+    - ../../.env
+  environment:
+    APP_ENV: local
+    ENABLE_LOCAL_WINDOWS_WATCHERS: "false"
+    DATABASE_URL: sqlite+aiosqlite:////app/data/powerflow.db
+  volumes:
+    - ../../data:/app/data
+  restart: unless-stopped
 
 services:
-  app:
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
-    container_name: taskflow_app
+  migrate:
+    <<: *powerflow-service
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *powerflow-service
+    command: ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
-    env_file:
-      - ../../.env
-    volumes:
-      - ../../data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    <<: *powerflow-service
+    command: ["python", "-m", "apps.worker.main"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+
+  scheduler:
+    <<: *powerflow-service
+    command: ["python", "-m", "apps.worker.scheduler"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
     restart: unless-stopped

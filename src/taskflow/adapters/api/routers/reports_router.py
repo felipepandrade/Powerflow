@@ -3,10 +3,10 @@
 import csv
 import io
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,17 +31,20 @@ class ManualMetricRequest(BaseModel):
 async def get_one_pager(
     project_id: uuid.UUID | None = None,
     session: AsyncSession = Depends(get_db_session),
+    period_start: date | None = None,
+    period_end: date | None = None,
 ) -> dict[str, Any]:
     uow = SqlAlchemyUnitOfWork(session)
     uc = GenerateOnePagerUseCase(session, uow)
-    return await uc.execute(project_id=project_id)
+    return await uc.execute(project_id=project_id, period_start=period_start,
+                            period_end=period_end)
 
 
 @router.post("/manual-metric", status_code=201)
 async def add_manual_metric(
     req: ManualMetricRequest, session: AsyncSession = Depends(get_db_session)
 ) -> dict[str, Any]:
-    today = date.today()
+    today = datetime.now(UTC).date()
     
     # Deletar pré-existente para garantir idempotência
     from sqlalchemy import delete
@@ -65,8 +68,12 @@ async def add_manual_metric(
         dimension_key=req.dimension_key,
         dimension_value=req.dimension_value,
         value=req.value,
+        numerator=req.value,
+        denominator=None,
         is_suppressed=False,
         sample_size=1,
+        coverage_pct=100.0,
+        coverage_level="high",
         suppression_reason=f"Entrada Manual: {req.note}" if req.note else "Entrada Manual",
         computed_at=datetime.utcnow(),
     )
@@ -92,7 +99,7 @@ async def export_tasks_csv(session: AsyncSession = Depends(get_db_session)) -> R
             t.title,
             t.status,
             t.priority,
-            t.due_date.isoformat() if t.due_date else "",
+            t.due_date or "",
             t.created_at.isoformat() if t.created_at else "",
         ])
 

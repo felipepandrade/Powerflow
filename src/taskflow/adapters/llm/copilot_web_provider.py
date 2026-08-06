@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -52,12 +52,13 @@ class CopilotWebLLMProvider(LLMProvider):
                     if responses:
                         last_text = await responses[-1].inner_text()
                         await browser.close()
-                        return last_text
+                        return str(last_text)
                 await browser.close()
-        except Exception as e:
-            log.warning("copilot_web.browser_session_fallback", error=str(e))
+        except Exception as exc:  # noqa: BLE001 - browser adapter boundary
+            log.warning("copilot_web.browser_session_failed", error_type=type(exc).__name__)
 
         # Fallback estruturado caso a automação do navegador esteja inicializando
+        raise RuntimeError("Microsoft Copilot browser session is unavailable")
         return f"Resposta simulada da sessão do Copilot Corporativo para: {prompt[:60]}"
 
     async def classify(self, text: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -75,8 +76,11 @@ class CopilotWebLLMProvider(LLMProvider):
         )
         res = await self._send_copilot_prompt(prompt)
         try:
-            return json.loads(res)
-        except Exception:
+            parsed = json.loads(res)
+            if not isinstance(parsed, dict):
+                raise TypeError("Copilot extraction response must be an object")
+            return cast(dict[str, Any], parsed)
+        except (json.JSONDecodeError, TypeError):
             return {"title": text[:50], "description": text}
 
     async def correlate(self, signal: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:

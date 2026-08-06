@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taskflow.adapters.persistence.models import CalendarEventORM, TaskORM, FollowUpORM
+from taskflow.adapters.persistence.models import CalendarEventORM, FollowUpORM, TaskORM
 from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
 from taskflow.domain.ports.ports import LLMProvider
 
@@ -42,7 +42,7 @@ class EvaluateStalenessUseCase:
             select(TaskORM)
             .where(
                 TaskORM.status.in_(["in_progress", "waiting_on"]),
-                (TaskORM.last_activity_at < cutoff_date) | (TaskORM.last_activity_at == None),  # noqa: E711
+                (TaskORM.last_activity_at < cutoff_date) | (TaskORM.last_activity_at == None),
             )
             .limit(50)
         )
@@ -107,7 +107,7 @@ class EvaluateStalenessUseCase:
                 "status": t.status,
                 "days_inactive": days_inactive,
                 "recommendation": action_recommendation,
-                "meeting_title": matched_meeting.title if matched_meeting else None,
+                "meeting_title": matched_meeting.organizer_email if matched_meeting else None,
                 "nudge_draft": nudge_draft,
             })
 

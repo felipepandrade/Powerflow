@@ -1,12 +1,16 @@
 """Testes unitários para MetricRegistry, EthicsGuard, SuppressionPolicy e ComputeMetricsUseCase."""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from taskflow.adapters.persistence.models import Base, DailyTaskSnapshotORM
+from taskflow.adapters.persistence.models import (
+    Base,
+    DailyCalendarSnapshotORM,
+    DailyTaskSnapshotORM,
+)
 from taskflow.adapters.persistence.unit_of_work import SqlAlchemyUnitOfWork
 from taskflow.application.use_cases.compute_metrics import ComputeMetricsUseCase
 from taskflow.domain.metrics.ethics_guard import EthicsGuard, EthicsViolationError
@@ -59,7 +63,7 @@ def test_suppression_policy_k_anonymity() -> None:
 
 @pytest.mark.asyncio
 async def test_compute_metrics_use_case(db_session: AsyncSession) -> None:
-    today = date.today()
+    today = datetime.now(UTC).date()
 
     # Inserir alguns snapshots de tarefa no dia
     snap1 = DailyTaskSnapshotORM(
@@ -86,7 +90,8 @@ async def test_compute_metrics_use_case(db_session: AsyncSession) -> None:
         cum_days_waiting=0,
         cum_days_blocked=0,
     )
-    db_session.add_all([snap1, snap2])
+    calendar = DailyCalendarSnapshotORM(snapshot_date=today, available_minutes=480)
+    db_session.add_all([snap1, snap2, calendar])
     await db_session.commit()
 
     uow = SqlAlchemyUnitOfWork(db_session)

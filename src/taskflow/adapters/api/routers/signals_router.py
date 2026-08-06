@@ -1,5 +1,8 @@
-import datetime
+from __future__ import annotations
+
+import hashlib
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -12,7 +15,12 @@ from taskflow.adapters.api.schemas.schemas import (
     TriageProposalRequest,
     TriageProposalResponse,
 )
-from taskflow.application.dto.commands import IngestSourceItemCommand
+from taskflow.application.dto.commands import (
+    AcceptProposalCommand,
+    CorrelateSignalCommand,
+    IngestSourceItemCommand,
+    RejectProposalCommand,
+)
 from taskflow.application.use_cases.correlate_signal import CorrelateSignalUseCase
 from taskflow.application.use_cases.get_pending_triage import GetPendingTriageUseCase
 from taskflow.application.use_cases.ingest_source_item import IngestSourceItemUseCase
@@ -23,34 +31,37 @@ from taskflow.config.container import (
     get_pending_triage_use_case,
     get_triage_proposal_use_case,
 )
-from taskflow.domain.value_objects.enums import SourceKind
 
 router = APIRouter(prefix="/api/signals", tags=["Signals"])
 
 
 @router.post("", response_model=IngestSourceResponse, status_code=201)
 async def ingest_source(
-    req: IngestSourceRequest,
-    uc: IngestSourceItemUseCase = Depends(get_ingest_source_item_use_case),
+    request: IngestSourceRequest,
+    use_case: IngestSourceItemUseCase = Depends(get_ingest_source_item_use_case),
 ) -> IngestSourceResponse:
-    """Ingere um novo item de origem (email, anotação, etc.) e dispara a extração de sinais."""
-    cmd = IngestSourceItemCommand(
-        kind=SourceKind.EMAIL,
-        channel=req.channel,
-        external_id=str(uuid.uuid4()),
-        occurred_at=datetime.datetime.utcnow(),
-        revision_hash=str(uuid.uuid4()),
-        body_full=req.content,
-        body_preview=req.content[:500] if req.content else None,
-        author_email=req.author_email,
-        author_name=req.author_name,
+    content_hash = hashlib.sha256(request.content.encode("utf-8")).hexdigest()
+    result = await use_case.execute(
+        IngestSourceItemCommand(
+            kind=request.kind,
+            channel=request.channel,
+            external_id=request.external_id or f"api:{content_hash}",
+            occurred_at=request.occurred_at or datetime.utcnow(),
+            revision_hash=request.revision_hash or content_hash,
+            title=request.title,
+            body_full=request.content,
+            body_preview=request.content[:500],
+            author_email=request.author_email,
+            author_name=request.author_name,
+        )
     )
-    result = await uc.execute(cmd)
-    
-    status = "accepted"
-    if result.was_filtered:
-        status = "filtered"
-        
+    status = (
+        "deduplicated"
+        if result.was_deduplicated
+        else "filtered"
+        if result.was_filtered
+        else "accepted"
+    )
     return IngestSourceResponse(
         source_item_id=str(result.source_item_id),
         status=status,
@@ -61,63 +72,60 @@ async def ingest_source(
 @router.post("/{signal_id}/correlate", response_model=CorrelateSignalResponse)
 async def correlate_signal(
     signal_id: uuid.UUID,
-    uc: CorrelateSignalUseCase = Depends(get_correlate_signal_use_case),
+    use_case: CorrelateSignalUseCase = Depends(get_correlate_signal_use_case),
 ) -> CorrelateSignalResponse:
-    """Dispara a correlação de um sinal específico contra a base de tarefas candidatas."""
     try:
-        run = await uc.execute(signal_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="Signal not found or not pending")
-            
-        return CorrelateSignalResponse(
-            signal_id=str(run.signal_id),
-            action_taken=run.routed_to_triage and "triage" or "applied",
-            message=f"Correlation finished with action: {run.routed_to_triage and 'triage' or 'applied'}",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result = await use_case.execute(CorrelateSignalCommand(signal_id=signal_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return CorrelateSignalResponse(
+        signal_id=str(result.signal_id),
+        action_taken=result.action,
+        message=f"Correlation finished with action: {result.action}",
+        correlation_run_id=result.correlation_run_id,
+        decision_kind=result.decision_kind.value,
+        policy_rule_id=result.policy_rule_id,
+        confidence=result.confidence,
+        applied_task_id=result.applied_task_id,
+        proposal_id=result.proposal_id,
+    )
 
 
 @router.get("/triage", response_model=TriageListResponse)
 async def list_pending_triage(
-    uc: GetPendingTriageUseCase = Depends(get_pending_triage_use_case),
+    use_case: GetPendingTriageUseCase = Depends(get_pending_triage_use_case),
 ) -> TriageListResponse:
-    """Retorna itens na fila de triagem aguardando decisão manual."""
-    try:
-        signals = await uc.execute()
-        schema_data = [TriageItemSchema.model_validate(s) for s in signals]
-        return TriageListResponse(data=schema_data, count=len(schema_data))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    proposals = await use_case.execute()
+    data = [TriageItemSchema.model_validate(proposal) for proposal in proposals]
+    return TriageListResponse(data=data, count=len(data))
 
 
-@router.post("/{signal_id}/triage", response_model=TriageProposalResponse)
+@router.post("/{proposal_id}/triage", response_model=TriageProposalResponse)
 async def triage_proposal(
-    signal_id: uuid.UUID,
-    req: TriageProposalRequest,
-    uc: TriageProposalUseCase = Depends(get_triage_proposal_use_case),
+    proposal_id: uuid.UUID,
+    request: TriageProposalRequest,
+    use_case: TriageProposalUseCase = Depends(get_triage_proposal_use_case),
 ) -> TriageProposalResponse:
-    """Aplica a decisão manual de triagem feita pelo usuário."""
     try:
-        from taskflow.application.dto.commands import AcceptProposalCommand, RejectProposalCommand
-        if req.action == "apply":
-            cmd = AcceptProposalCommand(
-                proposal_id=signal_id,
-                user_edits=req.modifications
+        if request.action == "apply":
+            edits = dict(request.modifications or {})
+            if request.task_id:
+                edits.setdefault("task_id", request.task_id)
+            await use_case.accept(
+                AcceptProposalCommand(proposal_id=proposal_id, user_edits=edits or None)
             )
-            await uc.accept(cmd)
+        elif request.action == "discard":
+            await use_case.reject(
+                RejectProposalCommand(
+                    proposal_id=proposal_id,
+                    reason="Rejected by user",
+                )
+            )
         else:
-            cmd = RejectProposalCommand(
-                proposal_id=signal_id,
-                reason="Rejeitado manualmente"
-            )
-            await uc.reject(cmd)
-            
-        return TriageProposalResponse(
-            success=True,
-            message=f"Triage decision '{req.action}' applied successfully.",
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=422, detail="action must be apply or discard")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return TriageProposalResponse(
+        success=True,
+        message=f"Triage decision '{request.action}' applied.",
+    )

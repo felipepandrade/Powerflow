@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Self
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +12,12 @@ class Settings(BaseSettings):
     APP_ENV: str = "local"
     LOG_LEVEL: str = "INFO"
     ENCRYPTION_KEY: str = "c29tZV9zZWNyZXRfa2V5XzMyX2J5dGVzX2xvbmdfMTIzNDU2Nzg="
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    ENABLE_LOCAL_WINDOWS_WATCHERS: bool = False
+    ENABLE_SCHEDULER: bool = True
+    SCHEDULER_INTERVAL_SECONDS: int = 60
+    FRONTEND_AUTH_SUCCESS_URL: str = "http://localhost:5173/settings?auth_success=true"
+    APP_TIMEZONE: str = "America/Sao_Paulo"
 
     # ── Persistência ────────────────────────────────────────────────────
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/taskflow.db"
@@ -20,8 +28,12 @@ class Settings(BaseSettings):
     MS_CLIENT_ID: str = ""
     MS_CLIENT_SECRET: str = ""
     MS_TENANT_ID: str = "common"
-    MS_REDIRECT_URI: str = "http://localhost:8000/api/auth/callback"
+    MS_REDIRECT_URI: str = "http://localhost:8080/api/auth/callback"
     SYNC_INTERVAL_MINUTES: int = 15
+    MS_SCOPES: str = (
+        "User.Read,Mail.Read,Mail.Send,Chat.Read,Calendars.Read,People.Read,"
+        "User.ReadBasic.All,offline_access"
+    )
 
     # ── LLM: Gemini (default) ───────────────────────────────────────────
     LLM_PROVIDER: str = "gemini"
@@ -74,7 +86,7 @@ class Settings(BaseSettings):
     CORR_DISCARD_MAX: float = 0.55
     CORR_AMBIGUITY_DELTA: float = 0.10
     SIGNAL_PENDING_TTL_DAYS: int = 7
-    ALLOW_AUTO_DONE: bool = True
+    ALLOW_AUTO_DONE: bool = False
     ALLOW_AUTO_CANCEL: bool = False
 
     # ── Follow-up ───────────────────────────────────────────────────────
@@ -89,6 +101,31 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        """Return the explicit CORS allow-list configured for the API."""
+        return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def microsoft_scopes(self) -> list[str]:
+        """Return delegated Microsoft Graph scopes without empty entries."""
+        return [scope.strip() for scope in self.MS_SCOPES.split(",") if scope.strip()]
+
+    @model_validator(mode="after")
+    def reject_insecure_public_defaults(self) -> Self:
+        """Fail closed when public environments retain development secrets or CORS."""
+        if self.APP_ENV.lower() in {"local", "test"}:
+            return self
+
+        known_development_key = "c29tZV9zZWNyZXRfa2V5XzMyX2J5dGVzX2xvbmdfMTIzNDU2Nzg="
+        if not self.ENCRYPTION_KEY or self.ENCRYPTION_KEY == known_development_key:
+            raise ValueError("ENCRYPTION_KEY must be replaced outside local/test mode")
+        if "*" in self.cors_allowed_origins:
+            raise ValueError("Wildcard CORS is forbidden outside local/test mode")
+        if self.ENABLE_LOCAL_WINDOWS_WATCHERS:
+            raise ValueError("Windows COM watchers are only supported in local/test mode")
+        return self
+
 
 
 @lru_cache

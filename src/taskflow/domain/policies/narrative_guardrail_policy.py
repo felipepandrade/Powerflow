@@ -23,7 +23,7 @@ class NarrativeGuardrailPolicy:
     """Garante 0 números órfãos ou inventados em relatórios e insights narrativos."""
 
     # Regex para capturar inteiros e decimais (ex: 45, 12.5, 85%)
-    NUMBER_PATTERN = re.compile(r"\b\d+(?:[.,]\d+)?\b")
+    NUMBER_PATTERN = re.compile(r"(?<![\w])[-+]?\d+(?:[.,]\d+)?")
 
     @classmethod
     def validate(cls, narrative_text: str, evidence_values: list[float | int]) -> GuardrailResult:
@@ -47,8 +47,6 @@ class NarrativeGuardrailPolicy:
         discrepancies = []
         for num in extracted:
             # Ignorar números de item (1, 2, 3) se pequenos e inteiros
-            if num in (1.0, 2.0, 3.0, 4.0, 5.0):
-                continue
             if num not in evidence_set:
                 discrepancies.append(num)
 

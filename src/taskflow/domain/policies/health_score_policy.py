@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass(frozen=True)
 class HealthScoreResult:
     """Resultado do score de saúde com decomposição explicativa."""
 
-    score: float  # 0.0 a 100.0
+    score: float | None
     components: dict[str, float] = field(default_factory=dict)
+    coverage_pct: float = 100.0
+    caveat: str | None = None
 
 
 class HealthScorePolicy:
@@ -31,13 +32,10 @@ class HealthScorePolicy:
         oldest_blocked_days: int | None,
     ) -> HealthScoreResult:
         if tasks_total == 0:
-            return HealthScoreResult(score=100.0, components={
-                "wip_score": 100.0,
-                "overdue_score": 100.0,
-                "blocked_score": 100.0,
-                "milestones_score": 100.0,
-                "activity_score": 100.0,
-            })
+            return HealthScoreResult(
+                score=None, components={}, coverage_pct=0.0,
+                caveat="Saúde desconhecida: projeto sem tarefas observáveis.",
+            )
 
         # 1. WIP Score (WIP ideal <= 30% do total aberto)
         wip_ratio = tasks_in_progress / max(tasks_open, 1)

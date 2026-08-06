@@ -122,6 +122,13 @@ class SourceItemORM(Base):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    __table_args__ = (
+        UniqueConstraint(
+            "kind", "external_id", "revision_hash",
+            name="uq_source_kind_external_revision",
+        ),
+    )
+
 
 class CalendarEventORM(Base):
     __tablename__ = "calendar_events"
@@ -269,6 +276,13 @@ class TaskEvidenceORM(Base):
     quote: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(50), nullable=False)  # origin|update|completion_signal|context|meeting_agenda
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "task_id", "source_item_id", "quote",
+            name="uq_task_evidence_source_quote",
+        ),
+    )
 
 
 class TaskStatusHistoryORM(Base):

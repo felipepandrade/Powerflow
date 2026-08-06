@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -29,13 +30,17 @@ class AlertRuleEngine:
     MAX_ACTIVE_ALERTS = 7
 
     @classmethod
-    def evaluate_metrics(cls, metrics_data: list[dict[str, float]]) -> list[Alert]:
+    def evaluate_metrics(cls, metrics_data: list[dict[str, Any]]) -> list[Alert]:
         """Avalia métricas contra limiares predefinidos e retorna alertas."""
         generated: list[Alert] = []
 
         for m in metrics_data:
-            metric_id = m.get("metric_id", "")
-            val = m.get("value", 0.0)
+            metric_id = str(m.get("metric_id", ""))
+            raw_value = m.get("value")
+            if m.get("is_suppressed") or not isinstance(raw_value, (int, float)):
+                continue
+            val = float(raw_value)
+
 
             # 1. Alerta de WIP elevado
             if metric_id == "flow.wip" and val > 5.0:

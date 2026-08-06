@@ -36,10 +36,10 @@ class SuggestFollowUpUseCase:
             raise ValueError(f"Tarefa {cmd.task_id} não encontrada.")
 
         task_context = {
-            "title": task.title,  # type: ignore[union-attr]
-            "description": task.description,  # type: ignore[union-attr]
-            "status": task.status.value,  # type: ignore[union-attr]
-            "due_date": task.due_date.isoformat() if task.due_date else None,  # type: ignore[union-attr]
+            "title": task.title,
+            "description": task.description,
+            "status": task.status.value,
+            "due_date": task.due_date.isoformat() if task.due_date else None,
         }
 
         draft_body = await self._llm.draft_follow_up(
@@ -50,7 +50,7 @@ class SuggestFollowUpUseCase:
 
         subject: str | None = None
         if cmd.channel == FollowUpChannel.EMAIL:
-            subject = f"Acompanhamento: {task.title}"  # type: ignore[union-attr]
+            subject = f"Acompanhamento: {task.title}"
 
         log.info("follow_up.drafted", task_id=str(cmd.task_id), channel=cmd.channel.value)
 

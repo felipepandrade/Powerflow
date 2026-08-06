@@ -12,6 +12,9 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
+from taskflow.domain.entities.source import CalendarEvent, CorrelationRun, Signal, SourceItem
+from taskflow.domain.entities.task import Task, TaskProposal
+
 
 class LLMProvider(abc.ABC):
     """Porta para provedores de LLM — RF-C.5, RF-H.1."""
@@ -63,11 +66,11 @@ class TaskRepository(abc.ABC):
     """Porta para persistência de tarefas."""
 
     @abc.abstractmethod
-    async def get_by_id(self, task_id: uuid.UUID) -> Any | None:
+    async def get_by_id(self, task_id: uuid.UUID) -> Task | None:
         """Busca tarefa por ID."""
 
     @abc.abstractmethod
-    async def save(self, task: Any) -> None:
+    async def save(self, task: Task) -> None:
         """Persiste ou atualiza uma tarefa."""
 
     @abc.abstractmethod
@@ -75,39 +78,67 @@ class TaskRepository(abc.ABC):
         self,
         status_filter: list[str] | None = None,
         limit: int = 100,
-    ) -> Sequence[Any]:
+    ) -> Sequence[Task]:
         """Retorna tarefas ativas com filtros opcionais."""
 
     @abc.abstractmethod
-    async def search_full_text(self, query: str, limit: int = 20) -> Sequence[Any]:
+    async def search_full_text(self, query: str, limit: int = 20) -> Sequence[Task]:
         """Busca full-text em título, descrição e evidências — RF-D.7."""
 
     @abc.abstractmethod
-    async def find_by_embedding(self, embedding: list[float], top_k: int = 8) -> Sequence[Any]:
+    async def find_by_embedding(self, embedding: list[float], top_k: int = 8) -> Sequence[Task]:
         """Busca semântica por similaridade vetorial — recuperador R6."""
+
+    async def find_by_source_context(
+        self, conversation_id: str | None, external_id: str | None, limit: int = 8,
+    ) -> Sequence[Task]:
+        """Return tasks linked to the same source conversation or event."""
+        return ()
 
 
 class SignalRepository(abc.ABC):
     """Porta para persistência de sinais e dados de correlação."""
 
     @abc.abstractmethod
-    async def save(self, signal: Any) -> None:
+    async def save(self, item: Signal | SourceItem | TaskProposal) -> None:
         """Persiste ou atualiza um sinal."""
+    async def save_calendar_event(self, event: CalendarEvent) -> None:
+        """Persist capacity-safe calendar metadata."""
+        raise NotImplementedError
+
+    async def get_signal_by_id(self, signal_id: uuid.UUID) -> Signal | None:
+        """Fetch a signal regardless of its current state."""
+        raise NotImplementedError
+
 
     @abc.abstractmethod
-    async def get_source_item_by_id(self, item_id: uuid.UUID) -> Any | None:
+    async def get_source_item_by_id(self, item_id: uuid.UUID) -> SourceItem | None:
         """Busca o SourceItem pelo ID."""
+    async def get_source_item_by_dedup_key(
+        self, kind: str, external_id: str, revision_hash: str,
+    ) -> SourceItem | None:
+        """Fetch the canonical item protected by the transactional unique key."""
+        raise NotImplementedError
+
 
     @abc.abstractmethod
-    async def get_pending(self, limit: int = 50) -> Sequence[Any]:
+    async def get_pending(self, limit: int = 50) -> Sequence[Signal]:
         """Retorna sinais aguardando correlação."""
+    async def get_proposal_by_id(self, proposal_id: uuid.UUID) -> TaskProposal | None:
+        """Fetch one triage proposal by identity."""
+        raise NotImplementedError
+
+    async def get_pending_proposals(self, limit: int = 50) -> Sequence[TaskProposal]:
+        """Return pending triage proposals only."""
+        raise NotImplementedError
+
 
     @abc.abstractmethod
-    async def save_correlation_run(self, run: Any) -> None:
+    async def save_correlation_run(self, run: CorrelationRun) -> None:
         """Persiste auditoria de correlação — NF-5."""
 
     @abc.abstractmethod
-    async def get_orphan_signals(self, since: datetime, limit: int = 100) -> Sequence[Any]:
+    async def get_orphan_signals(self, since: datetime, limit: int = 100) -> Sequence[Signal]:
         """Retorna sinais não resolvidos para reprocessamento tardio — RF-G.10."""
 
 

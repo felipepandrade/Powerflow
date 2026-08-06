@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 
 from taskflow.domain.ports.ports import (
     Clock,
@@ -59,6 +59,7 @@ class FakeSignalRepository(SignalRepository):
 
     def __init__(self) -> None:
         self._items: list[Any] = []
+        self._calendar_events: list[Any] = []
 
     async def save(self, signal: Any) -> None:
         # Atualiza se já existe
@@ -68,6 +69,30 @@ class FakeSignalRepository(SignalRepository):
                 return
         self._items.append(signal)
 
+    async def save_calendar_event(self, event: Any) -> None:
+        self._calendar_events.append(event)
+
+    async def get_signal_by_id(self, signal_id: uuid.UUID) -> Any | None:
+        from taskflow.domain.entities.source import Signal
+        return next(
+            (item for item in self._items if isinstance(item, Signal) and item.id == signal_id),
+            None,
+        )
+
+    async def get_source_item_by_dedup_key(
+        self, kind: str, external_id: str, revision_hash: str,
+    ) -> Any | None:
+        from taskflow.domain.entities.source import SourceItem
+        return next(
+            (
+                item for item in self._items
+                if isinstance(item, SourceItem)
+                and item.kind.value == kind
+                and item.external_id == external_id
+                and item.revision_hash == revision_hash
+            ),
+            None,
+        )
     async def get_pending(self, limit: int = 50) -> Sequence[Any]:
         from taskflow.domain.value_objects.enums import ProposalStatus, SignalState
         return [
@@ -82,6 +107,20 @@ class FakeSignalRepository(SignalRepository):
                 return item
         return None
 
+    async def get_proposal_by_id(self, proposal_id: uuid.UUID) -> Any | None:
+        from taskflow.domain.entities.task import TaskProposal
+        return next(
+            (item for item in self._items if isinstance(item, TaskProposal) and item.id == proposal_id),
+            None,
+        )
+
+    async def get_pending_proposals(self, limit: int = 50) -> Sequence[Any]:
+        from taskflow.domain.entities.task import TaskProposal
+        from taskflow.domain.value_objects.enums import ProposalStatus
+        return [
+            item for item in self._items
+            if isinstance(item, TaskProposal) and item.status == ProposalStatus.PENDING
+        ][:limit]
     async def save_correlation_run(self, run: Any) -> None:
         self._items.append(run)
 
@@ -105,7 +144,7 @@ class FakeUnitOfWork(UnitOfWork):
         self.committed = False
         self.rolled_back = False
 
-    async def __aenter__(self) -> FakeUnitOfWork:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> None:

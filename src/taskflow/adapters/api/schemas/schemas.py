@@ -1,12 +1,26 @@
-from datetime import date
+import uuid
+from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from taskflow.domain.value_objects.enums import (
+    Priority,
+    ProposalKind,
+    ProposalStatus,
+    SourceKind,
+    TaskStatus,
+)
 
 # --- Ingestion Schemas ---
 
 class IngestSourceRequest(BaseModel):
     content: str = Field(..., description="Texto bruto a ser ingerido (ex: corpo do email, mensagem)")
+    kind: SourceKind = SourceKind.EMAIL
+    external_id: str | None = None
+    revision_hash: str | None = None
+    occurred_at: datetime | None = None
+    title: str | None = None
     author_email: str | None = Field(None, description="Email do autor")
     author_name: str | None = Field(None, description="Nome do autor")
     channel: str = Field("api", description="Canal de origem (ex: api, email, calendar)")
@@ -33,6 +47,12 @@ class CorrelateSignalResponse(BaseModel):
     signal_id: str
     action_taken: str
     message: str
+    correlation_run_id: uuid.UUID
+    decision_kind: str
+    policy_rule_id: str
+    confidence: float
+    applied_task_id: uuid.UUID | None = None
+    proposal_id: uuid.UUID | None = None
 
 
 class TriageProposalRequest(BaseModel):
@@ -49,10 +69,13 @@ class TriageProposalResponse(BaseModel):
 # --- Task Schemas ---
 
 class ManageTaskRequest(BaseModel):
-    status: str | None = Field(None, description="Novo status (ex: completed, blocked, cancelled)")
+    status: TaskStatus | None = None
     title: str | None = Field(None, description="Novo título")
     description: str | None = Field(None, description="Nova descrição")
 
+    due_date: date | None = None
+    waiting_on_id: uuid.UUID | None = None
+    priority: Priority | None = None
 
 class ManageTaskResponse(BaseModel):
     success: bool
@@ -66,23 +89,24 @@ class FollowUpResponse(BaseModel):
 
 # --- Read/List Schemas ---
 
-import uuid
 
 
 class TaskSchema(BaseModel):
     id: uuid.UUID
     title: str
     description: str | None = None
-    status: str | Any
-    priority: str | Any
-    due_date: str | Any | None = None
-    project_id: uuid.UUID | Any | None = None
-    waiting_on_id: uuid.UUID | Any | None = None
-    last_activity_at: str | Any | None = None
-    
-    class Config:
-        from_attributes = True
-        use_enum_values = True
+    status: TaskStatus
+    priority: Priority
+    due_date: date | None = None
+    project_id: uuid.UUID | None = None
+    waiting_on_id: uuid.UUID | None = None
+    last_activity_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    evidence_count: int = 0
+    update_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 class TaskListResponse(BaseModel):
     data: list[TaskSchema]
@@ -90,16 +114,15 @@ class TaskListResponse(BaseModel):
 
 class TriageItemSchema(BaseModel):
     id: uuid.UUID
-    source_item_id: uuid.UUID
-    signal_type: str | Any
-    state: str | Any
+    signal_id: uuid.UUID
+    proposal_kind: ProposalKind
+    status: ProposalStatus
     payload: dict[str, Any]
-    decision_conf: float | None = None
-    created_at: str | Any | None = None
-    
-    class Config:
-        from_attributes = True
-        use_enum_values = True
+    candidate_tasks: list[dict[str, Any]] | None = None
+    confidence: float
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 class TriageListResponse(BaseModel):
     data: list[TriageItemSchema]
@@ -116,8 +139,7 @@ class AreaSchema(BaseModel):
     kind: str
     is_own_team: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AreaCreateRequest(BaseModel):
@@ -134,8 +156,7 @@ class PortfolioSchema(BaseModel):
     description: str | None = None
     owner_id: uuid.UUID | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PortfolioCreateRequest(BaseModel):
@@ -153,8 +174,7 @@ class StakeholderSchema(BaseModel):
     area_id: uuid.UUID | None = None
     is_active: bool = True
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StakeholderCreateRequest(BaseModel):
@@ -175,8 +195,7 @@ class ProjectSchema(BaseModel):
     area_id: uuid.UUID | None = None
     color: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectCreateRequest(BaseModel):
@@ -196,8 +215,7 @@ class MilestoneSchema(BaseModel):
     target_date: date | str
     status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MilestoneCreateRequest(BaseModel):

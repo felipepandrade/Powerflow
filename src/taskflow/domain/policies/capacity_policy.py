@@ -7,7 +7,9 @@ e buffer configurável.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date as CalendarDate
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 
 @dataclass(frozen=True)
@@ -69,15 +71,26 @@ class CapacityPolicy:
         work_end: time = time(18, 0),
         work_days: frozenset[int] = frozenset({0, 1, 2, 3, 4}),  # Mon-Fri
         buffer_minutes: int = 60,
+        timezone_name: str = "America/Sao_Paulo",
+        excluded_dates: frozenset[CalendarDate] = frozenset(),
     ) -> None:
         self.work_start = work_start
         self.work_end = work_end
         self.work_days = work_days
         self.buffer_minutes = buffer_minutes
+        self.timezone = ZoneInfo(timezone_name)
+        self.excluded_dates = excluded_dates
+
+    def _to_local_naive(self, value: datetime) -> datetime:
+        """Normaliza um instante para o fuso de trabalho antes de remover tzinfo."""
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(self.timezone).replace(tzinfo=None)
+
 
     def _work_minutes_for_day(self, date: datetime) -> float:
         """Retorna minutos úteis no dia."""
-        if date.weekday() not in self.work_days:
+        if date.weekday() not in self.work_days or date.date() in self.excluded_dates:
             return 0.0
         work_start_dt = date.replace(
             hour=self.work_start.hour,
@@ -146,7 +159,14 @@ class CapacityPolicy:
             date: Dia para o qual calcular (apenas a data é usada).
             blocks: Lista de blocos de tempo de reunião.
         """
-        is_work_day = date.weekday() in self.work_days
+        date = self._to_local_naive(date)
+        normalized_blocks = [
+            TimeBlock(self._to_local_naive(block.starts_at),
+                      self._to_local_naive(block.ends_at),
+                      block.title, block.is_all_day)
+            for block in blocks
+        ]
+        is_work_day = date.weekday() in self.work_days and date.date() not in self.excluded_dates
         total_work = self._work_minutes_for_day(date)
 
         if not is_work_day:
@@ -157,13 +177,14 @@ class CapacityPolicy:
                 buffer_minutes=0,
                 free_minutes=0,
                 is_work_day=False,
-                blocks=blocks,
+                blocks=normalized_blocks,
             )
 
         # Filtra blocos do mesmo dia e mescla sobrepostos
         day_blocks = [
-            b for b in blocks
-            if b.starts_at.date() == date.date() or b.ends_at.date() == date.date()
+            b for b in normalized_blocks
+            if (not b.is_all_day
+                and (b.starts_at.date() <= date.date() <= b.ends_at.date()))
         ]
 
         merged = self._merge_overlapping(day_blocks)

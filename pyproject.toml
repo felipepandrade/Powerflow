@@ -22,10 +22,15 @@ dependencies = [
     "cryptography>=42.0.5",
     "google-genai>=0.1.0",
     "msal>=1.28.0",
-    "pywin32>=306",
+    "pywin32>=306; sys_platform == 'win32'",
+    "asyncpg>=0.29.0",
+    "tzdata>=2025.2; sys_platform == 'win32'",
     "alembic>=1.13.0",
     "python-multipart>=0.0.9",
 ]
+
+[project.scripts]
+taskflow = "taskflow.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -48,6 +53,13 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [
+    ".agent",
+    "src/taskflow/adapters/api/routers/oauth_openai.py",
+    "src/taskflow/adapters/llm/chatgpt_subscription.py",
+    "tests/unit/adapters/test_chatgpt_subscription.py",
+]
+
 
 [tool.ruff.lint]
 ignore = [
@@ -64,3 +76,19 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 files = ["src", "apps"]
+exclude = "(oauth_openai|chatgpt_subscription)"
+
+[tool.coverage.run]
+source = ["src/taskflow"]
+omit = [
+    "src/taskflow/adapters/api/routers/oauth_openai.py",
+    "src/taskflow/adapters/llm/chatgpt_subscription.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.paths]
+source = ["src/taskflow", "*/site-packages/taskflow"]

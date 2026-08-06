@@ -75,7 +75,7 @@ async def test_project_and_milestone_repository(db_session: AsyncSession) -> Non
     project = Project(name="TaskFlow v1.2", status=ProjectStatus.ACTIVE)
     await proj_repo.save(project)
 
-    ms = Milestone(project_id=project.id, name="M1 Release", target_date=date.today(), status=MilestoneStatus.PLANNED)
+    ms = Milestone(project_id=project.id, name="M1 Release", target_date=date(2026, 8, 5), status=MilestoneStatus.PLANNED)
     await ms_repo.save(ms)
     await db_session.commit()
 

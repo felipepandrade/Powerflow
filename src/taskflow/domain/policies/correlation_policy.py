@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from taskflow.domain.value_objects.enums import (
@@ -128,6 +129,9 @@ class CorrelationPolicy:
             assessments: Lista de assessments do LLM para detecção de ambiguidade.
         """
         # Verifica ambiguidade antes de qualquer decisão — Guardrail 4
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+
         ambiguity = self._check_ambiguity(assessments)
         if ambiguity:
             return CorrelationDecision(
@@ -213,6 +217,39 @@ class CorrelationPolicy:
         changes: dict[str, Any] | None,
     ) -> CorrelationDecision:
         """RF-G.8: UPDATE_EXISTING."""
+        if task_id is None:
+            return CorrelationDecision(
+                action="triage",
+                decision_kind=DecisionKind.UPDATE_EXISTING,
+                policy_rule_id=RULE_UPDATE_TRIAGE,
+                proposed_changes=changes,
+                confidence=confidence,
+                ambiguity_reason="candidate_identity_missing",
+            )
+
+        if changes and changes.get("due_date") and changes.get("current_due_date"):
+            proposed_due: date | None
+            current_due: date | None
+            try:
+                proposed_due = date.fromisoformat(str(changes["due_date"]))
+                current_due = date.fromisoformat(str(changes["current_due_date"]))
+            except ValueError:
+                proposed_due = current_due = None
+            if proposed_due is None or current_due is None or proposed_due < current_due:
+                return CorrelationDecision(
+                    action="triage",
+                    decision_kind=DecisionKind.UPDATE_EXISTING,
+                    policy_rule_id=RULE_DUE_DATE_ADVANCE_TRIAGE,
+                    primary_task_id=task_id,
+                    proposed_changes=changes,
+                    confidence=confidence,
+                )
+            if confidence >= self.auto_transition_min:
+                return CorrelationDecision(
+                    action="apply", decision_kind=DecisionKind.UPDATE_EXISTING,
+                    policy_rule_id=RULE_DUE_DATE_POSTPONE_AUTO, primary_task_id=task_id,
+                    proposed_changes=changes, confidence=confidence,
+                )
         if confidence >= self.auto_update_min:
             return CorrelationDecision(
                 action="apply",

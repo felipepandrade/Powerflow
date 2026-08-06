@@ -1,12 +1,4 @@
-"""Use Case: IngestSourceItem — UC-1.
-
-Orquestra o pipeline de ingestão de um item de origem:
-  1. Deduplicação por revision_hash
-  2. Construção do SourceItem / CalendarEvent
-  3. Redação de privacidade (eventos private/confidential)
-  4. Persistência
-  5. Enfileiramento para extração de sinais
-"""
+"""Safe canonical source ingestion."""
 
 from __future__ import annotations
 
@@ -20,21 +12,13 @@ from taskflow.application.dto.commands import IngestSourceItemCommand, IngestSou
 from taskflow.domain.entities.source import CalendarEvent, SourceItem
 from taskflow.domain.policies.privacy_redaction import PrivacyRedactionPolicy
 from taskflow.domain.ports.ports import Queue, SignalRepository, TaskRepository, UnitOfWork
-from taskflow.domain.value_objects.enums import (
-    CalendarSensitivity,
-    ProcessingStatus,
-    SourceKind,
-)
+from taskflow.domain.value_objects.enums import CalendarSensitivity, ProcessingStatus, SourceKind
 
 log = structlog.get_logger()
 
 
 class IngestSourceItemUseCase:
-    """UC-1 — Ingestão de SourceItem.
-
-    Recebe dados brutos de qualquer canal e produz um SourceItem
-    persistido + sinal enfileirado para correlação.
-    """
+    """Persist one canonical revision, redact it, then enqueue extraction."""
 
     def __init__(
         self,
@@ -44,28 +28,42 @@ class IngestSourceItemUseCase:
         uow: UnitOfWork,
         privacy_policy: PrivacyRedactionPolicy | None = None,
     ) -> None:
-        self._task_repo = task_repo
         self._signal_repo = signal_repo
         self._queue = queue
         self._uow = uow
         self._privacy = privacy_policy or PrivacyRedactionPolicy()
 
     async def execute(self, cmd: IngestSourceItemCommand) -> IngestSourceItemResult:
-        """Executa o pipeline de ingestão."""
-        log.info("ingest.start", kind=cmd.kind.value, external_id=cmd.external_id)
+        if not cmd.external_id.strip() or not cmd.revision_hash.strip():
+            raise ValueError("external_id and revision_hash are required")
 
-        item = self._build_source_item(cmd)
-        cal_event: CalendarEvent | None = None
+        async with self._uow:
+            existing = await self._signal_repo.get_source_item_by_dedup_key(
+                cmd.kind.value, cmd.external_id, cmd.revision_hash
+            )
+            if existing is not None:
+                await self._uow.commit()
+                return IngestSourceItemResult(
+                    source_item_id=existing.id,
+                    was_deduplicated=True,
+                    was_filtered=existing.processing_status == ProcessingStatus.FILTERED,
+                    filtered_reason=existing.filtered_reason,
+                    signal_id=None,
+                    was_enqueued_for_correlation=False,
+                )
 
-        if cmd.kind == SourceKind.CALENDAR_EVENT:
-            cal_event = self._build_calendar_event(cmd, item.id)
-            item = self._privacy.redact(item, cal_event)
+            item = self._build_source_item(cmd)
+            calendar_event: CalendarEvent | None = None
+            if cmd.kind == SourceKind.CALENDAR_EVENT:
+                calendar_event = self._build_calendar_event(cmd, item.id)
+                item = self._privacy.redact(item, calendar_event)
+
+            await self._signal_repo.save(item)
+            if calendar_event is not None:
+                await self._signal_repo.save_calendar_event(calendar_event)
+            await self._uow.commit()
 
         if item.is_redacted:
-            # Não enfileira — apenas persiste metadados
-            async with self._uow:
-                await self._signal_repo.save(item)  # type: ignore[arg-type]
-                await self._uow.commit()
             log.info("ingest.redacted", source_item_id=str(item.id))
             return IngestSourceItemResult(
                 source_item_id=item.id,
@@ -76,17 +74,9 @@ class IngestSourceItemUseCase:
                 was_enqueued_for_correlation=False,
             )
 
-        item = self._mark_pending(item)
-        
-        async with self._uow:
-            await self._signal_repo.save(item)  # type: ignore[arg-type]
-            await self._uow.commit()
-
         job_id = await self._queue.enqueue(
-            "extract_signals",
-            {"source_item_id": str(item.id)},
+            "extract_signals", {"source_item_id": str(item.id)}
         )
-
         log.info("ingest.enqueued", source_item_id=str(item.id), job_id=job_id)
         return IngestSourceItemResult(
             source_item_id=item.id,
@@ -97,8 +87,9 @@ class IngestSourceItemUseCase:
             was_enqueued_for_correlation=True,
         )
 
-    def _build_source_item(self, cmd: IngestSourceItemCommand) -> SourceItem:
-        """Constrói o SourceItem a partir do comando."""
+    @staticmethod
+    def _build_source_item(cmd: IngestSourceItemCommand) -> SourceItem:
+        preview_source = cmd.body_preview or cmd.body_full
         return SourceItem(
             id=uuid.uuid4(),
             kind=cmd.kind,
@@ -110,8 +101,8 @@ class IngestSourceItemUseCase:
             author_name=cmd.author_name,
             participants=cmd.participants,
             title=cmd.title,
-            body_preview=cmd.body_preview[:500] if cmd.body_preview else None,
-            body_full=cmd.body_full,
+            body_preview=preview_source[:500] if preview_source else None,
+            body_full=cmd.body_full if cmd.store_full_body else None,
             occurred_at=cmd.occurred_at,
             has_attachments=cmd.has_attachments,
             importance=cmd.importance,
@@ -120,26 +111,28 @@ class IngestSourceItemUseCase:
             created_at=datetime.utcnow(),
         )
 
+    @staticmethod
     def _build_calendar_event(
-        self,
-        cmd: IngestSourceItemCommand,
-        source_item_id: uuid.UUID,
+        cmd: IngestSourceItemCommand, source_item_id: uuid.UUID
     ) -> CalendarEvent:
-        """Constrói o CalendarEvent a partir do comando."""
-        sensitivity = CalendarSensitivity.NORMAL
-        if cmd.calendar_sensitivity:
-            try:
-                sensitivity = CalendarSensitivity(cmd.calendar_sensitivity.lower())
-            except ValueError:
-                sensitivity = CalendarSensitivity.NORMAL
+        try:
+            sensitivity = CalendarSensitivity(
+                (cmd.calendar_sensitivity or CalendarSensitivity.NORMAL.value).lower()
+            )
+        except ValueError:
+            sensitivity = CalendarSensitivity.NORMAL
 
         return CalendarEvent(
             source_item_id=source_item_id,
             graph_event_id=cmd.external_id,
             series_master_id=cmd.calendar_series_master_id,
+            instance_type=cmd.calendar_instance_type,
+            body_hash=cmd.calendar_body_hash,
             starts_at=cmd.calendar_starts_at or cmd.occurred_at,
             ends_at=cmd.calendar_ends_at or cmd.occurred_at,
             is_all_day=cmd.calendar_is_all_day,
+            timezone=cmd.calendar_timezone,
+            location=cmd.calendar_location,
             is_online=cmd.calendar_is_online,
             join_url=cmd.calendar_join_url,
             linked_chat_id=cmd.calendar_linked_chat_id,
@@ -149,14 +142,10 @@ class IngestSourceItemUseCase:
             sensitivity=sensitivity,
             is_cancelled=cmd.calendar_is_cancelled,
             attendee_count=cmd.calendar_attendee_count,
+            categories=cmd.calendar_categories,
         )
-
-    def _mark_pending(self, item: SourceItem) -> SourceItem:
-        """Marca o item como pendente de extração."""
-        from dataclasses import replace
-        return replace(item, processing_status=ProcessingStatus.PENDING)
 
     @staticmethod
     def compute_dedup_key(external_id: str, revision_hash: str) -> str:
-        """Gera a chave de deduplicação para verificar duplicatas."""
+        """Stable diagnostic key; database uniqueness remains authoritative."""
         return hashlib.sha256(f"{external_id}:{revision_hash}".encode()).hexdigest()

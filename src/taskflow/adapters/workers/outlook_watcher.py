@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pythoncom
 import structlog
@@ -17,7 +18,7 @@ PROCESSED_ENTRY_IDS: set[str] = set()
 PROCESSED_CALENDAR_IDS: set[str] = set()
 
 
-def poll_outlook_sync() -> tuple[list[dict], list[dict]]:
+def poll_outlook_sync() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Função síncrona em thread isolada para interagir com Outlook COM.
 
     Retorna (novos_emails, novos_eventos_calendario).
@@ -51,8 +52,8 @@ def poll_outlook_sync() -> tuple[list[dict], list[dict]]:
                     "sender_email": getattr(msg, "SenderEmailAddress", ""),
                     "received_time": msg.ReceivedTime.isoformat() if hasattr(msg, "ReceivedTime") else None,
                 })
-            except Exception as e:
-                log.error("outlook.email_parse_error", error=str(e))
+            except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+                log.error("outlook.email_parse_error", error_type=type(exc).__name__)
                 continue
 
         # 2. Calendário (Calendar = 9)
@@ -62,7 +63,7 @@ def poll_outlook_sync() -> tuple[list[dict], list[dict]]:
         events.Sort("[Start]")
 
         # Filtrar janela: -7 dias até +30 dias
-        now = datetime.now()
+        now = datetime.now(UTC).astimezone()
         start_range = (now - timedelta(days=7)).strftime("%m/%d/%Y %H:%M %p")
         end_range = (now + timedelta(days=30)).strftime("%m/%d/%Y %H:%M %p")
         restricted_events = events.Restrict(f'[Start] >= "{start_range}" AND [End] <= "{end_range}"')
@@ -106,8 +107,8 @@ def poll_outlook_sync() -> tuple[list[dict], list[dict]]:
                     "organizer": getattr(evt, "Organizer", ""),
                     "is_recurring": getattr(evt, "IsRecurring", False),
                 })
-            except Exception as e:
-                log.error("outlook.calendar_parse_error", error=str(e))
+            except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+                log.error("outlook.calendar_parse_error", error_type=type(exc).__name__)
                 continue
 
         return new_emails, new_events
@@ -151,7 +152,7 @@ async def watch_outlook(interval_seconds: int = 5) -> None:
                         occurred_at = datetime.utcnow()
                         if email_data.get("received_time"):
                             try:
-                                dt_str = email_data["received_time"]
+                                dt_str = str(email_data["received_time"])
                                 occurred_at = datetime.fromisoformat(dt_str).astimezone(UTC).replace(tzinfo=None)
                             except ValueError:
                                 pass
@@ -164,7 +165,7 @@ async def watch_outlook(interval_seconds: int = 5) -> None:
                             revision_hash=email_data["message_id"],
                             title=email_data.get("subject"),
                             body_full=email_data.get("body"),
-                            body_preview=email_data.get("body")[:500] if email_data.get("body") else None,
+                            body_preview=str(email_data.get("body"))[:500] if email_data.get("body") else None,
                             author_email=email_data.get("sender_email"),
                             author_name=email_data.get("sender_name"),
                         )
@@ -176,12 +177,12 @@ async def watch_outlook(interval_seconds: int = 5) -> None:
                         ends_at = datetime.utcnow()
                         if evt_data.get("starts_at"):
                             try:
-                                starts_at = datetime.fromisoformat(evt_data["starts_at"]).astimezone(UTC).replace(tzinfo=None)
+                                starts_at = datetime.fromisoformat(str(evt_data["starts_at"])).astimezone(UTC).replace(tzinfo=None)
                             except ValueError:
                                 pass
                         if evt_data.get("ends_at"):
                             try:
-                                ends_at = datetime.fromisoformat(evt_data["ends_at"]).astimezone(UTC).replace(tzinfo=None)
+                                ends_at = datetime.fromisoformat(str(evt_data["ends_at"])).astimezone(UTC).replace(tzinfo=None)
                             except ValueError:
                                 pass
 
@@ -193,7 +194,7 @@ async def watch_outlook(interval_seconds: int = 5) -> None:
                             revision_hash=evt_data["event_id"],
                             title=evt_data.get("subject"),
                             body_full=evt_data.get("body"),
-                            body_preview=evt_data.get("body")[:500] if evt_data.get("body") else None,
+                            body_preview=str(evt_data.get("body"))[:500] if evt_data.get("body") else None,
                             author_name=evt_data.get("organizer"),
                             calendar_starts_at=starts_at,
                             calendar_ends_at=ends_at,
@@ -202,7 +203,7 @@ async def watch_outlook(interval_seconds: int = 5) -> None:
                         )
                         await uc.execute(cmd)
 
-        except Exception as e:
-            log.error("outlook.loop_error", error=str(e))
+        except Exception as exc:  # noqa: BLE001 - COM adapter boundary
+            log.error("outlook.loop_error", error_type=type(exc).__name__)
 
         await asyncio.sleep(interval_seconds)

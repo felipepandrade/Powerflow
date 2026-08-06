@@ -17,12 +17,13 @@ from taskflow.application.dto.commands import (
     CreateTaskCommand,
     TaskView,
     TransitionTaskCommand,
+    UndoAutoActionCommand,
     UndoLastTransitionCommand,
     UpdateTaskCommand,
 )
 from taskflow.domain.entities.task import Task, TaskStatusHistory
 from taskflow.domain.policies.task_state_machine import TaskStateMachine
-from taskflow.domain.ports.ports import TaskRepository, UnitOfWork
+from taskflow.domain.ports.ports import SignalRepository, TaskRepository, UnitOfWork
 from taskflow.domain.value_objects.enums import ActorType, TaskStatus
 
 log = structlog.get_logger()
@@ -40,10 +41,12 @@ class ManageTaskUseCase:
         task_repo: TaskRepository,
         uow: UnitOfWork,
         state_machine: TaskStateMachine | None = None,
+        signal_repo: SignalRepository | None = None,
     ) -> None:
         self._repo = task_repo
         self._uow = uow
         self._sm = state_machine or TaskStateMachine()
+        self._signal_repo = signal_repo
 
     # ─── Criação ─────────────────────────────────────────────────────────────
 
@@ -172,13 +175,11 @@ class ManageTaskUseCase:
         last.undone_at = datetime.utcnow()
 
         # Restaura do snapshot
-        if last.snapshot:
-            try:
-                task.status = TaskStatus(last.snapshot["status"])
-            except (KeyError, ValueError):
-                task.status = last.from_status  # type: ignore[assignment]
-        else:
-            task.status = last.from_status  # type: ignore[assignment]
+        if last.snapshot and "status" in last.snapshot:
+            task.restore_snapshot(last.snapshot)
+        elif last.from_status is not None:
+            task.status = last.from_status
+
 
         task.updated_at = datetime.utcnow()
         task.last_activity_at = datetime.utcnow()
@@ -200,6 +201,49 @@ class ManageTaskUseCase:
         log.info("task.undo", task_id=str(task.id), restored_status=task.status.value)
         return self._to_view(task)
 
+    async def undo_auto_action(self, cmd: UndoAutoActionCommand) -> TaskView:
+        """Durably and idempotently restore one automatic mutation."""
+        task = await self._get_or_raise(cmd.task_id)
+        history = next(
+            (item for item in task.status_history if item.id == cmd.history_id),
+            None,
+        )
+        if history is None:
+            raise ValueError(f"History {cmd.history_id} not found for task {task.id}")
+        if history.actor not in (ActorType.LLM, ActorType.SYSTEM):
+            raise ValueError("Only automatic actions can be undone")
+        if history.is_undone:
+            return self._to_view(task)
+        if history.snapshot is None:
+            raise ValueError("Automatic action has no durable undo snapshot")
+
+        if history.snapshot.get("created") is True:
+            task.status = TaskStatus.CANCELLED
+        else:
+            task.restore_snapshot(history.snapshot)
+        history.is_undone = True
+        history.undone_at = datetime.utcnow()
+        task.updated_at = datetime.utcnow()
+        task.last_activity_at = datetime.utcnow()
+
+        signal = None
+        signal_repo = self._signal_repo
+        if history.signal_id is not None:
+            if signal_repo is None:
+                raise ValueError("Signal repository is required for automatic undo")
+            signal = await signal_repo.get_signal_by_id(history.signal_id)
+            if signal is not None:
+                from taskflow.domain.value_objects.enums import SignalState
+                signal.state = SignalState.DISCARDED
+                signal.resolved_at = datetime.utcnow()
+
+        async with self._uow:
+            await self._repo.save(task)
+            if history.signal_id is not None and signal is not None:
+                assert signal_repo is not None
+                await signal_repo.save(signal)
+            await self._uow.commit()
+        return self._to_view(task)
     # ─── Helpers ─────────────────────────────────────────────────────────────
 
     async def _get_or_raise(self, task_id: uuid.UUID) -> Task:
@@ -207,7 +251,7 @@ class ManageTaskUseCase:
         task = await self._repo.get_by_id(task_id)
         if task is None:
             raise ValueError(f"Tarefa {task_id} não encontrada.")
-        return task  # type: ignore[return-value]
+        return task
 
     def _to_view(self, task: Task) -> TaskView:
         """Converte entidade para DTO de leitura."""

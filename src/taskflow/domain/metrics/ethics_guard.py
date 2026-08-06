@@ -6,6 +6,8 @@ bloqueando qualquer tentativa de monitoramento individual de pessoas ou ranking.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 
 class EthicsViolationError(ValueError):
     """Exceção lançada quando uma métrica ou consulta viola as diretrizes éticas."""
@@ -14,7 +16,7 @@ class EthicsViolationError(ValueError):
 class EthicsGuard:
     """Validador determinístico de diretrizes de governança ética."""
 
-    FORBIDDEN_KEYWORDS = [
+    FORBIDDEN_KEYWORDS: ClassVar[list[str]] = [
         "ranking",
         "individual_performance",
         "employee_score",

@@ -1,4 +1,4 @@
-"""Testes de integração para os endpoints operacionais (timeline, undo, stale e capacity)."""
+"""Integration tests for honest operational endpoints."""
 
 import pytest
 from httpx import AsyncClient
@@ -6,24 +6,24 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_operational_endpoints(async_client: AsyncClient) -> None:
-    # 1. Capacidade Diária
-    cap_resp = await async_client.get("/api/system/capacity")
-    assert cap_resp.status_code == 200
-    assert cap_resp.json()["focus_time_available"] == 4.5
+    capacity_response = await async_client.get("/api/system/capacity")
+    assert capacity_response.status_code == 200
+    capacity = capacity_response.json()
+    assert capacity["state"] in {"known", "unknown"}
+    assert capacity["provenance"] == "daily_calendar_snapshots"
+    if capacity["state"] == "unknown":
+        assert capacity["meeting_minutes"] is None
+        assert capacity["available_minutes"] is None
 
-    # 2. Tarefas Envelhecidas
-    stale_resp = await async_client.get("/api/tasks/stale")
-    assert stale_resp.status_code == 200
-    assert isinstance(stale_resp.json(), list)
+    stale_response = await async_client.get("/api/tasks/stale")
+    assert stale_response.status_code == 200
+    assert isinstance(stale_response.json(), list)
 
-    # 3. Lista de tarefas para buscar um ID
-    tasks_resp = await async_client.get("/api/tasks")
-    assert tasks_resp.status_code == 200
-    tasks = tasks_resp.json()["data"]
-
-    if len(tasks) > 0:
+    tasks_response = await async_client.get("/api/tasks")
+    assert tasks_response.status_code == 200
+    tasks = tasks_response.json()["data"]
+    if tasks:
         task_id = tasks[0]["id"]
-        # Timeline
-        tl_resp = await async_client.get(f"/api/tasks/{task_id}/timeline")
-        assert tl_resp.status_code == 200
-        assert "timeline" in tl_resp.json()
+        timeline_response = await async_client.get(f"/api/tasks/{task_id}/timeline")
+        assert timeline_response.status_code == 200
+        assert "timeline" in timeline_response.json()

@@ -1,7 +1,7 @@
 """Testes de integração e unitários para BuildDailySnapshotsUseCase e HealthScorePolicy."""
 
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -58,6 +58,23 @@ def test_health_score_policy_calculation() -> None:
     assert "wip_score" in res_risk.components
 
 
+def test_health_score_is_unknown_without_observable_tasks() -> None:
+    result = HealthScorePolicy.calculate(
+        tasks_total=0,
+        tasks_open=0,
+        tasks_in_progress=0,
+        tasks_blocked=0,
+        tasks_overdue=0,
+        milestones_total=0,
+        milestones_at_risk=0,
+        milestones_missed=0,
+        days_since_activity=None,
+        oldest_blocked_days=None,
+    )
+    assert result.score is None
+    assert result.coverage_pct == 0.0
+
+
 @pytest.mark.asyncio
 async def test_build_daily_snapshots_use_case(db_session: AsyncSession) -> None:
     # 1. Criar projeto e tarefas no banco
@@ -65,8 +82,12 @@ async def test_build_daily_snapshots_use_case(db_session: AsyncSession) -> None:
     proj = ProjectORM(id=proj_id, name="Projeto Teste Snapshots", status="active")
     db_session.add(proj)
 
-    task1 = TaskORM(id=uuid.uuid4(), title="Tarefa 1", status="in_progress", priority="high", project_id=proj_id)
-    task2 = TaskORM(id=uuid.uuid4(), title="Tarefa 2", status="done", priority="medium", project_id=proj_id)
+    task1 = TaskORM(
+        id=uuid.uuid4(), title="Tarefa 1", status="in_progress", priority="high", project_id=proj_id
+    )
+    task2 = TaskORM(
+        id=uuid.uuid4(), title="Tarefa 2", status="done", priority="medium", project_id=proj_id
+    )
     db_session.add_all([task1, task2])
     await db_session.commit()
 
@@ -74,7 +95,7 @@ async def test_build_daily_snapshots_use_case(db_session: AsyncSession) -> None:
     uow = SqlAlchemyUnitOfWork(db_session)
     uc = BuildDailySnapshotsUseCase(db_session, uow)
 
-    today = date.today()
+    today = datetime.now(UTC).date()
     res = await uc.execute(today)
 
     assert res["task_snapshots"] == 2
@@ -85,3 +106,60 @@ async def test_build_daily_snapshots_use_case(db_session: AsyncSession) -> None:
     res_retry = await uc.execute(today)
     assert res_retry["task_snapshots"] == 2
     assert res_retry["project_snapshots"] == 1
+
+
+@pytest.mark.asyncio
+async def test_backfill_uses_status_history_and_is_append_only(
+    db_session: AsyncSession,
+) -> None:
+    from sqlalchemy import select
+
+    from taskflow.adapters.persistence.models import (
+        DailyTaskSnapshotORM,
+        TaskStatusHistoryORM,
+    )
+
+    task_id = uuid.uuid4()
+    target = date(2026, 8, 2)
+    task = TaskORM(
+        id=task_id,
+        title="Historical",
+        status="done",
+        created_at=datetime(2026, 8, 1, 9),
+        completed_at=datetime(2026, 8, 3, 10),
+    )
+    history = TaskStatusHistoryORM(
+        id=uuid.uuid4(),
+        task_id=task_id,
+        from_status="in_progress",
+        to_status="done",
+        actor="user",
+        created_at=datetime(2026, 8, 3, 10),
+    )
+    db_session.add_all([task, history])
+    await db_session.commit()
+
+    use_case = BuildDailySnapshotsUseCase(db_session, SqlAlchemyUnitOfWork(db_session))
+    await use_case.execute(target)
+    snapshot = (
+        await db_session.execute(
+            select(DailyTaskSnapshotORM).where(
+                DailyTaskSnapshotORM.snapshot_date == target,
+                DailyTaskSnapshotORM.task_id == task_id,
+            )
+        )
+    ).scalar_one()
+    assert snapshot.status == "in_progress"
+
+    task.status = "cancelled"
+    await db_session.commit()
+    await use_case.execute(target)
+    same_snapshot = (
+        await db_session.execute(
+            select(DailyTaskSnapshotORM).where(
+                DailyTaskSnapshotORM.snapshot_date == target,
+                DailyTaskSnapshotORM.task_id == task_id,
+            )
+        )
+    ).scalar_one()
+    assert same_snapshot.status == "in_progress"

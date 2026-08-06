@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Sequence
 
+from taskflow.domain.entities.task import Task
 from taskflow.domain.ports.ports import TaskRepository
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class GetActiveTasksUseCase:
     def __init__(self, repository: TaskRepository) -> None:
         self.repository = repository
 
-    async def execute(self) -> Sequence[dict]:
+    async def execute(self) -> Sequence[Task]:
         """Recupera tarefas não-concluídas/canceladas."""
         logger.info("Recuperando tarefas ativas")
         tasks = await self.repository.find_active()

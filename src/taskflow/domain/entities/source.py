@@ -135,7 +135,7 @@ class CorrelationRun:
     applied: bool = False
     routed_to_triage: bool = False
     policy_rule_id: str = ""  # Qual linha da matriz RF-G.8 decidiu
-    guardrail_blocks: list[dict[str, Any]] | None = None
+    guardrail_blocks: list[dict[str, Any]] = field(default_factory=list)
     skipped_llm: bool = False
     latency_ms: int | None = None
     correlation_id: str | None = None

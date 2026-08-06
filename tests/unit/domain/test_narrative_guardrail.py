@@ -1,7 +1,5 @@
 """Testes unitários para NarrativeGuardrailPolicy e GenerateNarrativeInsightUseCase."""
 
-import pytest
-
 from taskflow.domain.policies.narrative_guardrail_policy import NarrativeGuardrailPolicy
 
 
@@ -21,3 +19,9 @@ def test_narrative_guardrail_catches_hallucinated_number() -> None:
     result = NarrativeGuardrailPolicy.validate(narrative, evidence)
     assert result.is_valid is False
     assert 999.0 in result.discrepancies
+
+
+def test_narrative_guardrail_does_not_ignore_small_numbers() -> None:
+    result = NarrativeGuardrailPolicy.validate("Existem 2 riscos.", [10.0])
+    assert result.is_valid is False
+    assert result.discrepancies == [2.0]
